@@ -25,5 +25,7 @@ La implementación de este sistema permitirá:
 - **Interfaz gráfica**: PyQt
 - **Metodología de desarrollo**: Scrum
 
-
+## 💎 Integrantes
+- **Justin Tobar Soberon**
+- **Alexis Lomas Mites**
 
