@@ -1,0 +1,12 @@
+# Archivos de entorno
+.env
+.env.local
+.env*.local
+
+# Python (si usas venv)
+venv/
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
