@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Entrada - {{ instrumento.item.i_nombre if instrumento.item else 'Instrumento' }} - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-plus-circle text-success"></i> Registrar Entrada
+            </h1>
+            <a href="{{ url_for('instrumentos.detalle_instrumento', instrumento_id=instrumento.i_id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Información del Instrumento
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Código:</strong> <code>{{ instrumento.item.i_codigo if instrumento.item else 'N/A' }}</code></p>
+                        <p><strong>Nombre:</strong> {{ instrumento.item.i_nombre if instrumento.item else 'N/A' }}</p>
+                        <p><strong>Marca:</strong> {{ instrumento.i_marca }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Modelo:</strong> {{ instrumento.i_modelo }}</p>
+                        <p><strong>Serie:</strong> <code>{{ instrumento.i_serie }}</code></p>
+                        <p><strong>Stock Actual:</strong> <span class="badge bg-info">{{ instrumento.item.i_cantidad if instrumento.item else 0 }}</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-plus-circle"></i> Registrar Entrada
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="cantidad" class="form-label">Cantidad <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="cantidad" name="cantidad" 
+                               min="1" step="1" required>
+                        <div class="form-text">Cantidad de instrumentos a ingresar</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="valor_unitario" class="form-label">Valor Unitario <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="valor_unitario" name="valor_unitario" 
+                                   min="0" step="0.01" required 
+                                   value="{{ '%.2f'|format(instrumento.item.i_vUnitario) if instrumento.item else '0.00' }}">
+                        </div>
+                        <div class="form-text">Valor por unidad del instrumento</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="observaciones" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="observaciones" name="observaciones" 
+                                  rows="3" placeholder="Observaciones adicionales (opcional)"></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> Registrar Entrada
+                        </button>
+                        <a href="{{ url_for('instrumentos.detalle_instrumento', instrumento_id=instrumento.i_id) }}" 
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Información adicional -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info"></i> Información
+                </h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    <p><strong>Entrada:</strong> Incrementa el stock del instrumento.</p>
+                    <p><strong>Valor Total:</strong> Se calculará automáticamente (cantidad × valor unitario).</p>
+                    <p><strong>Stock:</strong> Se actualizará automáticamente después del registro.</p>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cantidadInput = document.getElementById('cantidad');
+    const valorUnitarioInput = document.getElementById('valor_unitario');
+    
+    function calcularTotal() {
+        const cantidad = parseFloat(cantidadInput.value) || 0;
+        const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
+        const total = cantidad * valorUnitario;
+        
+        // Mostrar el total calculado
+        let totalDisplay = document.getElementById('total-display');
+        if (!totalDisplay) {
+            totalDisplay = document.createElement('div');
+            totalDisplay.id = 'total-display';
+            totalDisplay.className = 'alert alert-info mt-2';
+            valorUnitarioInput.parentNode.parentNode.appendChild(totalDisplay);
+        }
+        
+        if (cantidad > 0 && valorUnitario > 0) {
+            totalDisplay.innerHTML = `<strong>Valor Total:</strong> $${total.toFixed(2)}`;
+            totalDisplay.style.display = 'block';
+        } else {
+            totalDisplay.style.display = 'none';
+        }
+    }
+    
+    cantidadInput.addEventListener('input', calcularTotal);
+    valorUnitarioInput.addEventListener('input', calcularTotal);
+    
+    // Calcular total inicial si hay valores
+    calcularTotal();
+});
+</script>
+{% endblock %}

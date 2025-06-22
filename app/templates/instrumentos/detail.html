@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}{{ instrumento.item.i_nombre if instrumento.item else 'Instrumento' }} - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-guitar"></i> Detalles del Instrumento
+            </h1>
+            <div>
+                <a href="{{ url_for('instrumentos.editar_instrumento', instrumento_id=instrumento.i_id) }}" class="btn btn-warning">
+                    <i class="fas fa-edit"></i> Editar
+                </a>
+                <a href="{{ url_for('instrumentos.listar_instrumentos') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- Información básica -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Información General
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Código:</strong></td>
+                                <td><code>{{ instrumento.item.i_codigo if instrumento.item else 'N/A' }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Nombre:</strong></td>
+                                <td>{{ instrumento.item.i_nombre if instrumento.item else 'N/A' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Marca:</strong></td>
+                                <td>{{ instrumento.i_marca }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Modelo:</strong></td>
+                                <td>{{ instrumento.i_modelo }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Serie:</strong></td>
+                                <td><code>{{ instrumento.i_serie }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Estado:</strong></td>
+                                <td>
+                                    {% if instrumento.i_estado == 'Disponible' %}
+                                        <span class="badge bg-success">{{ instrumento.i_estado }}</span>
+                                    {% elif instrumento.i_estado == 'En uso' %}
+                                        <span class="badge bg-warning">{{ instrumento.i_estado }}</span>
+                                    {% elif instrumento.i_estado == 'Mantenimiento' %}
+                                        <span class="badge bg-info">{{ instrumento.i_estado }}</span>
+                                    {% elif instrumento.i_estado == 'Reparación' %}
+                                        <span class="badge bg-secondary">{{ instrumento.i_estado }}</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ instrumento.i_estado }}</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td><strong>Valor:</strong></td>
+                                <td>${{ "%.2f"|format(instrumento.item.i_vUnitario) if instrumento.item else '0.00' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Registrado:</strong></td>
+                                <td>{{ instrumento.created_at.strftime('%d/%m/%Y') if instrumento.created_at else 'N/A' }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Historial de movimientos -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history"></i> Historial de Movimientos
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if movimientos %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Valor</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movimiento in movimientos %}
+                            <tr>
+                                <td>{{ movimiento.m_fecha.strftime('%d/%m/%Y') }}</td>
+                                <td>
+                                    {% if movimiento.m_tipo == 'entrada' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-plus-circle"></i> {{ movimiento.m_tipo.title() }}
+                                        </span>
+                                    {% elif movimiento.m_tipo == 'salida' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-minus-circle"></i> {{ movimiento.m_tipo.title() }}
+                                        </span>
+                                    {% elif movimiento.m_tipo == 'cambio_estado' %}
+                                        <span class="badge bg-warning">
+                                            <i class="fas fa-sync-alt"></i> Cambio de Estado
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-info">
+                                            <i class="fas fa-info-circle"></i> {{ movimiento.m_tipo.title() }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movimiento.m_cantidad }}</td>
+                                <td>${{ "%.2f"|format(movimiento.m_valorTotal) }}</td>
+                                <td>{{ movimiento.m_observaciones or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">No hay movimientos registrados para este instrumento.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- Acciones rápidas -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-bolt"></i> Acciones Rápidas
+                </h6>
+            </div>
+            <div class="card-body">
+                <!-- Cambiar estado -->
+                <form method="POST" action="{{ url_for('instrumentos.cambiar_estado', instrumento_id=instrumento.i_id) }}" class="mb-3">
+                    <label for="estado" class="form-label">Cambiar Estado:</label>
+                    <div class="input-group">
+                        <select class="form-select" name="estado" required>
+                            {% set estados = ['Disponible', 'En uso', 'Mantenimiento', 'Reparación', 'Fuera de servicio'] %}
+                            {% for estado_opt in estados %}
+                            <option value="{{ estado_opt }}" 
+                                    {% if instrumento.i_estado == estado_opt %}selected{% endif %}>
+                                {{ estado_opt }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('instrumentos.editar_instrumento', instrumento_id=instrumento.i_id) }}"
+                       class="btn btn-warning btn-sm">
+                        <i class="fas fa-edit"></i> Editar Información
+                    </a>
+                    
+                    <hr>
+                    
+                    <h6 class="text-muted mb-2">
+                        <i class="fas fa-exchange-alt"></i> Movimientos
+                    </h6>
+                    
+                    <a href="{{ url_for('movimientos.registrar_entrada', instrumento_id=instrumento.i_id) }}"
+                       class="btn btn-success btn-sm">
+                        <i class="fas fa-plus-circle"></i> Registrar Entrada
+                    </a>
+                    
+                    <a href="{{ url_for('movimientos.registrar_salida', instrumento_id=instrumento.i_id) }}"
+                       class="btn btn-danger btn-sm"
+                       {% if not instrumento.item or instrumento.item.i_cantidad <= 0 %}
+                       title="Sin stock disponible" disabled
+                       {% endif %}>
+                        <i class="fas fa-minus-circle"></i> Registrar Salida
+                    </a>
+                    
+                    <a href="{{ url_for('movimientos.historial_movimientos', instrumento_id=instrumento.i_id) }}"
+                       class="btn btn-info btn-sm">
+                        <i class="fas fa-history"></i> Ver Historial Completo
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información adicional -->
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info"></i> Información Adicional
+                </h6>
+            </div>
+            <div class="card-body">
+                <p><strong>ID:</strong> {{ instrumento.i_id }}</p>
+                <p><strong>Tipo:</strong> {{ instrumento.item.i_tipo.title() if instrumento.item else 'N/A' }}</p>
+                <p><strong>Última actualización:</strong><br>
+                   {{ instrumento.updated_at.strftime('%d/%m/%Y %H:%M') if instrumento.updated_at else 'N/A' }}</p>
+                
+                <hr>
+                
+                <!-- Botón de eliminar -->
+                <button type="button" class="btn btn-danger btn-sm w-100" data-bs-toggle="modal" data-bs-target="#deleteModal">
+                    <i class="fas fa-trash"></i> Eliminar Instrumento
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación para eliminar -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro que desea eliminar este instrumento?</p>
+                <p><strong>{{ instrumento.item.i_nombre if instrumento.item else 'N/A' }}</strong></p>
+                <p class="text-danger"><small>Esta acción no se puede deshacer.</small></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="POST" action="{{ url_for('instrumentos.eliminar_instrumento', instrumento_id=instrumento.i_id) }}" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">Eliminar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Confirmación antes de cambiar estado
+    const estadoForm = document.querySelector('form[action*="cambiar-estado"]');
+    if (estadoForm) {
+        estadoForm.addEventListener('submit', function(e) {
+            const nuevoEstado = this.querySelector('select[name="estado"]').value;
+            const estadoActual = '{{ instrumento.i_estado }}';
+            
+            if (nuevoEstado !== estadoActual) {
+                if (!confirm(`¿Cambiar el estado de "${estadoActual}" a "${nuevoEstado}"?`)) {
+                    e.preventDefault();
+                }
+            } else {
+                e.preventDefault();
+                alert('El instrumento ya tiene ese estado.');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

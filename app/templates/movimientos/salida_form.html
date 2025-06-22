@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar Salida - {{ instrumento.item.i_nombre if instrumento.item else 'Instrumento' }} - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-minus-circle text-danger"></i> Registrar Salida
+            </h1>
+            <a href="{{ url_for('instrumentos.detalle_instrumento', instrumento_id=instrumento.i_id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Información del Instrumento
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Código:</strong> <code>{{ instrumento.item.i_codigo if instrumento.item else 'N/A' }}</code></p>
+                        <p><strong>Nombre:</strong> {{ instrumento.item.i_nombre if instrumento.item else 'N/A' }}</p>
+                        <p><strong>Marca:</strong> {{ instrumento.i_marca }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Modelo:</strong> {{ instrumento.i_modelo }}</p>
+                        <p><strong>Serie:</strong> <code>{{ instrumento.i_serie }}</code></p>
+                        <p><strong>Stock Disponible:</strong> 
+                            <span class="badge {% if instrumento.item.i_cantidad > 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                {{ instrumento.item.i_cantidad if instrumento.item else 0 }}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                
+                {% if not instrumento.item or instrumento.item.i_cantidad <= 0 %}
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Advertencia:</strong> No hay stock disponible para este instrumento.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-minus-circle"></i> Registrar Salida
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" id="salidaForm">
+                    <div class="mb-3">
+                        <label for="cantidad" class="form-label">Cantidad <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="cantidad" name="cantidad" 
+                               min="1" step="1" required
+                               max="{{ instrumento.item.i_cantidad if instrumento.item else 0 }}">
+                        <div class="form-text">
+                            Máximo disponible: {{ instrumento.item.i_cantidad if instrumento.item else 0 }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="valor_unitario" class="form-label">Valor Unitario <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="valor_unitario" name="valor_unitario" 
+                                   min="0" step="0.01" required 
+                                   value="{{ '%.2f'|format(instrumento.item.i_vUnitario) if instrumento.item else '0.00' }}">
+                        </div>
+                        <div class="form-text">Valor por unidad del instrumento</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="observaciones" class="form-label">Observaciones</label>
+                        <textarea class="form-control" id="observaciones" name="observaciones" 
+                                  rows="3" placeholder="Motivo de la salida, destino, etc."></textarea>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-danger" 
+                                {% if not instrumento.item or instrumento.item.i_cantidad <= 0 %}disabled{% endif %}>
+                            <i class="fas fa-save"></i> Registrar Salida
+                        </button>
+                        <a href="{{ url_for('instrumentos.detalle_instrumento', instrumento_id=instrumento.i_id) }}" 
+                           class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Información adicional -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info"></i> Información
+                </h6>
+            </div>
+            <div class="card-body">
+                <small class="text-muted">
+                    <p><strong>Salida:</strong> Reduce el stock del instrumento.</p>
+                    <p><strong>Validación:</strong> No se puede registrar más cantidad de la disponible.</p>
+                    <p><strong>Stock:</strong> Se actualizará automáticamente después del registro.</p>
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cantidadInput = document.getElementById('cantidad');
+    const valorUnitarioInput = document.getElementById('valor_unitario');
+    const form = document.getElementById('salidaForm');
+    const stockDisponible = {{ instrumento.item.i_cantidad if instrumento.item else 0 }};
+    
+    function calcularTotal() {
+        const cantidad = parseFloat(cantidadInput.value) || 0;
+        const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
+        const total = cantidad * valorUnitario;
+        
+        // Mostrar el total calculado
+        let totalDisplay = document.getElementById('total-display');
+        if (!totalDisplay) {
+            totalDisplay = document.createElement('div');
+            totalDisplay.id = 'total-display';
+            totalDisplay.className = 'alert alert-info mt-2';
+            valorUnitarioInput.parentNode.parentNode.appendChild(totalDisplay);
+        }
+        
+        if (cantidad > 0 && valorUnitario > 0) {
+            totalDisplay.innerHTML = `<strong>Valor Total:</strong> $${total.toFixed(2)}`;
+            totalDisplay.style.display = 'block';
+        } else {
+            totalDisplay.style.display = 'none';
+        }
+        
+        // Validar cantidad
+        if (cantidad > stockDisponible) {
+            cantidadInput.setCustomValidity(`La cantidad no puede ser mayor a ${stockDisponible}`);
+            cantidadInput.classList.add('is-invalid');
+        } else {
+            cantidadInput.setCustomValidity('');
+            cantidadInput.classList.remove('is-invalid');
+        }
+    }
+    
+    function validarStock() {
+        const cantidad = parseInt(cantidadInput.value) || 0;
+        
+        if (cantidad > stockDisponible) {
+            cantidadInput.setCustomValidity(`Stock insuficiente. Disponible: ${stockDisponible}`);
+            return false;
+        } else {
+            cantidadInput.setCustomValidity('');
+            return true;
+        }
+    }
+    
+    cantidadInput.addEventListener('input', function() {
+        calcularTotal();
+        validarStock();
+    });
+    
+    valorUnitarioInput.addEventListener('input', calcularTotal);
+    
+    form.addEventListener('submit', function(e) {
+        if (!validarStock()) {
+            e.preventDefault();
+            alert(`No se puede registrar la salida. Stock disponible: ${stockDisponible}`);
+        } else if (stockDisponible <= 0) {
+            e.preventDefault();
+            alert('No hay stock disponible para este instrumento.');
+        } else {
+            const cantidad = parseInt(cantidadInput.value) || 0;
+            if (!confirm(`¿Confirmar salida de ${cantidad} unidad(es) del instrumento?`)) {
+                e.preventDefault();
+            }
+        }
+    });
+    
+    // Calcular total inicial si hay valores
+    calcularTotal();
+});
+</script>
+{% endblock %}

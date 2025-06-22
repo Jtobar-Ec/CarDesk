@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}
+{% if instrumento %}Editar Instrumento{% else %}Nuevo Instrumento{% endif %} - Conservatorio Kardex
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-guitar"></i> 
+                {% if instrumento %}Editar Instrumento{% else %}Nuevo Instrumento{% endif %}
+            </h1>
+            <a href="{{ url_for('instrumentos.listar_instrumentos') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Información del Instrumento
+                </h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="codigo" class="form-label">Código *</label>
+                                <input type="text" class="form-control" id="codigo" name="codigo" 
+                                       value="{{ instrumento.item.i_codigo if instrumento else '' }}" 
+                                       {% if instrumento %}readonly{% endif %} required>
+                                <div class="form-text">Código único del instrumento</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="nombre" class="form-label">Nombre *</label>
+                                <input type="text" class="form-control" id="nombre" name="nombre" 
+                                       value="{{ instrumento.item.i_nombre if instrumento else '' }}" 
+                                       {% if instrumento %}readonly{% endif %} required>
+                                <div class="form-text">Nombre descriptivo del instrumento</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="marca" class="form-label">Marca *</label>
+                                <input type="text" class="form-control" id="marca" name="marca" 
+                                       value="{{ instrumento.i_marca if instrumento else '' }}" required>
+                                <div class="form-text">Marca del instrumento</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="modelo" class="form-label">Modelo *</label>
+                                <input type="text" class="form-control" id="modelo" name="modelo" 
+                                       value="{{ instrumento.i_modelo if instrumento else '' }}" required>
+                                <div class="form-text">Modelo del instrumento</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="serie" class="form-label">Número de Serie *</label>
+                                <input type="text" class="form-control" id="serie" name="serie" 
+                                       value="{{ instrumento.i_serie if instrumento else '' }}" required>
+                                <div class="form-text">Número de serie único</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="estado" class="form-label">Estado *</label>
+                                <select class="form-select" id="estado" name="estado" required>
+                                    <option value="">Seleccionar estado...</option>
+                                    <option value="Disponible" {% if instrumento and instrumento.i_estado == 'Disponible' %}selected{% endif %}>Disponible</option>
+                                    <option value="En uso" {% if instrumento and instrumento.i_estado == 'En uso' %}selected{% endif %}>En uso</option>
+                                    <option value="Mantenimiento" {% if instrumento and instrumento.i_estado == 'Mantenimiento' %}selected{% endif %}>Mantenimiento</option>
+                                    <option value="Reparación" {% if instrumento and instrumento.i_estado == 'Reparación' %}selected{% endif %}>Reparación</option>
+                                    <option value="Fuera de servicio" {% if instrumento and instrumento.i_estado == 'Fuera de servicio' %}selected{% endif %}>Fuera de servicio</option>
+                                </select>
+                                <div class="form-text">Estado actual del instrumento</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if not instrumento %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="valor_unitario" class="form-label">Valor Unitario</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="valor_unitario" name="valor_unitario" 
+                                           step="0.01" min="0" value="0">
+                                </div>
+                                <div class="form-text">Valor de adquisición del instrumento</div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('instrumentos.listar_instrumentos') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 
+                            {% if instrumento %}Actualizar{% else %}Crear{% endif %} Instrumento
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-info"></i> Información
+                </h6>
+            </div>
+            <div class="card-body">
+                <h6>Estados disponibles:</h6>
+                <ul class="list-unstyled">
+                    <li><span class="badge bg-success">Disponible</span> - Listo para usar</li>
+                    <li><span class="badge bg-warning">En uso</span> - Actualmente prestado</li>
+                    <li><span class="badge bg-info">Mantenimiento</span> - En mantenimiento preventivo</li>
+                    <li><span class="badge bg-secondary">Reparación</span> - Necesita reparación</li>
+                    <li><span class="badge bg-danger">Fuera de servicio</span> - No disponible</li>
+                </ul>
+
+                {% if instrumento %}
+                <hr>
+                <h6>Información adicional:</h6>
+                <p><strong>Creado:</strong> {{ instrumento.created_at.strftime('%d/%m/%Y %H:%M') if instrumento.created_at else 'N/A' }}</p>
+                <p><strong>Última actualización:</strong> {{ instrumento.updated_at.strftime('%d/%m/%Y %H:%M') if instrumento.updated_at else 'N/A' }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar dropdown de estado
+    const estadoSelect = document.getElementById('estado');
+    
+    // Asegurar que el dropdown funcione correctamente
+    estadoSelect.addEventListener('change', function() {
+        console.log('Estado seleccionado:', this.value);
+    });
+    
+    // Validación del formulario
+    const form = document.querySelector('form');
+    form.addEventListener('submit', function(e) {
+        const serie = document.getElementById('serie').value.trim();
+        const estado = document.getElementById('estado').value;
+        
+        if (serie.length < 3) {
+            e.preventDefault();
+            alert('El número de serie debe tener al menos 3 caracteres');
+            return false;
+        }
+        
+        if (!estado) {
+            e.preventDefault();
+            alert('Debe seleccionar un estado para el instrumento');
+            return false;
+        }
+    });
+});
+</script>
+{% endblock %}
