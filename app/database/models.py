@@ -59,7 +59,7 @@ class Item(BaseModel):
     movimientos = db.relationship('MovimientoDetalle', backref='item', lazy=True)
     stock = db.relationship('Stock', backref='item', uselist=False)
 
-class Instrumento(BaseModel):
+class Instrumento(db.Model):
     __tablename__ = 'tb_instrumento'
     
     i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), primary_key=True)
@@ -67,14 +67,34 @@ class Instrumento(BaseModel):
     i_modelo = db.Column(db.String(50), nullable=False)
     i_serie = db.Column(db.String(50), unique=True, nullable=False)
     i_estado = db.Column(db.String(50), nullable=False)  # Podría ser un Enum
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-class Articulo(BaseModel):
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
+
+class Articulo(db.Model):
     __tablename__ = 'tb_articulo'
     
     i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), primary_key=True)
     a_c_contable = db.Column(db.String(20), nullable=False)
     a_stockMax = db.Column(db.Integer)
     a_stockMin = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def save(self):
+        db.session.add(self)
+        db.session.commit()
+
+    def delete(self):
+        db.session.delete(self)
+        db.session.commit()
 
 class Stock(BaseModel):
     __tablename__ = 'tb_stock'

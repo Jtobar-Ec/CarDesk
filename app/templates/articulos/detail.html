@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}{{ item.i_nombre }} - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-box"></i> {{ item.i_nombre }}
+            </h1>
+            <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Información del artículo -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle"></i> Información del Artículo
+                </h5>
+            </div>
+            <div class="card-body">
+                <table class="table table-borderless">
+                    <tr>
+                        <td><strong>Código:</strong></td>
+                        <td><code>{{ item.i_codigo }}</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Nombre:</strong></td>
+                        <td>{{ item.i_nombre }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Cuenta Contable:</strong></td>
+                        <td>{{ articulo.a_c_contable }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Stock Actual:</strong></td>
+                        <td>
+                            {% if item.i_cantidad <= articulo.a_stockMin %}
+                                <span class="badge bg-danger fs-6">{{ item.i_cantidad }}</span>
+                            {% elif item.i_cantidad <= (articulo.a_stockMin * 1.5) %}
+                                <span class="badge bg-warning fs-6">{{ item.i_cantidad }}</span>
+                            {% else %}
+                                <span class="badge bg-success fs-6">{{ item.i_cantidad }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Stock Mínimo:</strong></td>
+                        <td>{{ articulo.a_stockMin }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Stock Máximo:</strong></td>
+                        <td>{{ articulo.a_stockMax }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Valor Unitario:</strong></td>
+                        <td>${{ "%.2f"|format(item.i_vUnitario) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Valor Total:</strong></td>
+                        <td>${{ "%.2f"|format(item.i_vTotal) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Fecha Registro:</strong></td>
+                        <td>{{ item.created_at.strftime('%d/%m/%Y %H:%M') if item.created_at else 'N/A' }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Acciones rápidas -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt"></i> Acciones Rápidas
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-success" 
+                            data-bs-toggle="modal" data-bs-target="#entradaModal">
+                        <i class="fas fa-plus"></i> Registrar Entrada
+                    </button>
+                    <button type="button" class="btn btn-danger" 
+                            data-bs-toggle="modal" data-bs-target="#salidaModal">
+                        <i class="fas fa-minus"></i> Registrar Salida
+                    </button>
+                    <hr>
+                    <a href="#" class="btn btn-outline-secondary">
+                        <i class="fas fa-edit"></i> Editar Artículo
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estado del stock -->
+        <div class="card mt-3">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar"></i> Estado del Stock
+                </h5>
+            </div>
+            <div class="card-body">
+                {% set porcentaje = (item.i_cantidad / articulo.a_stockMax * 100) if articulo.a_stockMax > 0 else 0 %}
+                <div class="progress mb-2" style="height: 25px;">
+                    {% if porcentaje <= 20 %}
+                        <div class="progress-bar bg-danger" style="width: {{ porcentaje }}%">
+                            {{ "%.1f"|format(porcentaje) }}%
+                        </div>
+                    {% elif porcentaje <= 50 %}
+                        <div class="progress-bar bg-warning" style="width: {{ porcentaje }}%">
+                            {{ "%.1f"|format(porcentaje) }}%
+                        </div>
+                    {% else %}
+                        <div class="progress-bar bg-success" style="width: {{ porcentaje }}%">
+                            {{ "%.1f"|format(porcentaje) }}%
+                        </div>
+                    {% endif %}
+                </div>
+                <small class="text-muted">
+                    {{ item.i_cantidad }} de {{ articulo.a_stockMax }} unidades máximas
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Historial de movimientos -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-history"></i> Historial de Movimientos
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if movimientos %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-sm">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Valor Unit.</th>
+                                <th>Valor Total</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movimiento in movimientos %}
+                            <tr>
+                                <td>{{ movimiento.m_fecha.strftime('%d/%m/%Y') }}</td>
+                                <td>
+                                    {% if movimiento.m_tipo == 'entrada' %}
+                                        <span class="badge bg-success">Entrada</span>
+                                    {% elif movimiento.m_tipo == 'salida' %}
+                                        <span class="badge bg-danger">Salida</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ movimiento.m_tipo|title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movimiento.m_cantidad }}</td>
+                                <td>${{ "%.2f"|format(movimiento.m_valorUnitario) }}</td>
+                                <td>${{ "%.2f"|format(movimiento.m_valorTotal) }}</td>
+                                <td>{{ movimiento.m_observaciones or '-' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="fas fa-history fa-2x text-muted mb-2"></i>
+                    <p class="text-muted">No hay movimientos registrados para este artículo.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modales -->
+<!-- Modal para entrada -->
+<div class="modal fade" id="entradaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar Entrada - {{ item.i_nombre }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('articulos.registrar_entrada', articulo_id=item.id) }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Cantidad</label>
+                        <input type="number" class="form-control" name="cantidad" required min="1">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Valor Unitario</label>
+                        <input type="number" class="form-control" name="valor_unitario" 
+                               step="0.01" required min="0" value="{{ item.i_vUnitario }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <textarea class="form-control" name="observaciones" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-success">Registrar Entrada</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para salida -->
+<div class="modal fade" id="salidaModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Registrar Salida - {{ item.i_nombre }}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('articulos.registrar_salida', articulo_id=item.id) }}">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <strong>Stock disponible:</strong> {{ item.i_cantidad }} unidades
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cantidad</label>
+                        <input type="number" class="form-control" name="cantidad" 
+                               required min="1" max="{{ item.i_cantidad }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Valor Unitario</label>
+                        <input type="number" class="form-control" name="valor_unitario" 
+                               step="0.01" required min="0" value="{{ item.i_vUnitario }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observaciones</label>
+                        <textarea class="form-control" name="observaciones" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-danger">Registrar Salida</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

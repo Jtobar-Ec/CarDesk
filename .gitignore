@@ -2,7 +2,7 @@
 .env
 .env.local
 .env*.local
-ignore.env  
+ignore.env
 
 # Python (si usas venv)
 venv/
