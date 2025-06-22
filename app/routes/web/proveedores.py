@@ -1,16 +1,19 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import login_required
 from app.services import ProveedorService
 
 bp = Blueprint('proveedores', __name__)
 proveedor_service = ProveedorService()
 
 @bp.route('/')
+@login_required
 def listar_proveedores():
     """Lista todos los proveedores"""
     proveedores = proveedor_service.obtener_todos()
     return render_template('proveedores/list.html', proveedores=proveedores)
 
 @bp.route('/nuevo', methods=['GET', 'POST'])
+@login_required
 def nuevo_proveedor():
     """Crear un nuevo proveedor"""
     if request.method == 'POST':
@@ -34,6 +37,7 @@ def nuevo_proveedor():
     return render_template('proveedores/form.html')
 
 @bp.route('/<int:proveedor_id>')
+@login_required
 def detalle_proveedor(proveedor_id):
     """Ver detalles de un proveedor"""
     proveedor = proveedor_service.obtener_por_id(proveedor_id)
@@ -44,6 +48,7 @@ def detalle_proveedor(proveedor_id):
     return render_template('proveedores/detail.html', proveedor=proveedor)
 
 @bp.route('/<int:proveedor_id>/editar', methods=['GET', 'POST'])
+@login_required
 def editar_proveedor(proveedor_id):
     """Editar un proveedor"""
     proveedor = proveedor_service.obtener_por_id(proveedor_id)
@@ -71,6 +76,7 @@ def editar_proveedor(proveedor_id):
     return render_template('proveedores/form.html', proveedor=proveedor)
 
 @bp.route('/buscar')
+@login_required
 def buscar_proveedores():
     """Buscar proveedores por nombre"""
     nombre = request.args.get('nombre', '')
