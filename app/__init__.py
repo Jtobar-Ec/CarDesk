@@ -1,4 +1,5 @@
 from flask import Flask
+from flask_login import LoginManager
 from .database import db, init_app
 
 def create_app():
@@ -12,8 +13,20 @@ def create_app():
     # Inicializar la base de datos
     init_app(app)
     
+    # Configurar Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Debes iniciar sesión para acceder a esta página.'
+    login_manager.login_message_category = 'info'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        from .database.models import Usuario
+        return Usuario.query.get(int(user_id))
+    
     # Importar rutas después de inicializar la base de datos
-    from .routes.web import dashboard, instrumentos, articulos, proveedores
+    from .routes.web import dashboard, instrumentos, articulos, proveedores, auth
     
     # Ruta de prueba
     @app.route('/test')
@@ -21,6 +34,7 @@ def create_app():
         return "¡Backend funcionando correctamente!", 200
     
     # Registrar blueprints
+    app.register_blueprint(auth.bp, url_prefix='/auth')
     app.register_blueprint(dashboard.bp, url_prefix='/')
     app.register_blueprint(instrumentos.bp, url_prefix='/instrumentos')
     app.register_blueprint(articulos.bp, url_prefix='/articulos')
