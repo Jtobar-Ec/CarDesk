@@ -8,6 +8,9 @@
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>
                 <i class="fas fa-boxes"></i> Artículos
+                {% if termino_busqueda %}
+                    <small class="text-muted">- Resultados para "{{ termino_busqueda }}"</small>
+                {% endif %}
             </h1>
             <div>
                 <a href="{{ url_for('articulos.stock_bajo') }}" class="btn btn-warning me-2">
@@ -16,6 +19,40 @@
                 <a href="{{ url_for('articulos.nuevo_articulo') }}" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Nuevo Artículo
                 </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Buscador -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('articulos.buscar_articulos') }}" class="row g-3">
+                    <div class="col-md-10">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" name="q"
+                                   placeholder="Buscar por nombre o código..."
+                                   value="{{ termino_busqueda or '' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-outline-primary w-100">
+                            <i class="fas fa-search"></i> Buscar
+                        </button>
+                    </div>
+                </form>
+                {% if termino_busqueda %}
+                <div class="mt-2">
+                    <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-times"></i> Limpiar búsqueda
+                    </a>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -74,21 +111,37 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ url_for('articulos.detalle_articulo', codigo=item.i_codigo) }}" 
+                                        <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}"
                                            class="btn btn-outline-primary" title="Ver detalles">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <button type="button" class="btn btn-outline-success" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#entradaModal{{ item.id }}" 
+                                        <a href="{{ url_for('articulos.editar_articulo', articulo_id=item.id) }}"
+                                           class="btn btn-outline-info" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <button type="button" class="btn btn-outline-warning"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#precioModal{{ item.id }}"
+                                                title="Actualizar precio">
+                                            <i class="fas fa-dollar-sign"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-success"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#entradaModal{{ item.id }}"
                                                 title="Registrar entrada">
                                             <i class="fas fa-plus"></i>
                                         </button>
-                                        <button type="button" class="btn btn-outline-danger" 
-                                                data-bs-toggle="modal" 
-                                                data-bs-target="#salidaModal{{ item.id }}" 
+                                        <button type="button" class="btn btn-outline-danger"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#salidaModal{{ item.id }}"
                                                 title="Registrar salida">
                                             <i class="fas fa-minus"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-dark"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#eliminarModal{{ item.id }}"
+                                                title="Eliminar">
+                                            <i class="fas fa-trash"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -160,6 +213,74 @@
                                                 <button type="submit" class="btn btn-danger">Registrar Salida</button>
                                             </div>
                                         </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal para actualizar precio -->
+                            <div class="modal fade" id="precioModal{{ item.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Actualizar Precio - {{ item.i_nombre }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('articulos.actualizar_precio', articulo_id=item.id) }}">
+                                            <div class="modal-body">
+                                                <div class="alert alert-info">
+                                                    <strong>Precio actual:</strong> ${{ "%.2f"|format(item.i_vUnitario) }}
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Nuevo Valor Unitario</label>
+                                                    <input type="number" class="form-control" name="nuevo_valor"
+                                                           step="0.01" required min="0" value="{{ item.i_vUnitario }}">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Observaciones</label>
+                                                    <textarea class="form-control" name="observaciones" rows="3"
+                                                              placeholder="Motivo del cambio de precio..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                <button type="submit" class="btn btn-warning">Actualizar Precio</button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal para eliminar -->
+                            <div class="modal fade" id="eliminarModal{{ item.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Eliminar Artículo</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="alert alert-danger">
+                                                <i class="fas fa-exclamation-triangle"></i>
+                                                <strong>¡Atención!</strong> Esta acción no se puede deshacer.
+                                            </div>
+                                            <p>¿Estás seguro de que deseas eliminar el artículo:</p>
+                                            <ul>
+                                                <li><strong>Código:</strong> {{ item.i_codigo }}</li>
+                                                <li><strong>Nombre:</strong> {{ item.i_nombre }}</li>
+                                                <li><strong>Stock actual:</strong> {{ item.i_cantidad }} unidades</li>
+                                            </ul>
+                                            <p class="text-muted">
+                                                <small>Nota: No se puede eliminar si existen movimientos registrados para este artículo.</small>
+                                            </p>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <form method="POST" action="{{ url_for('articulos.eliminar_articulo', articulo_id=item.id) }}" style="display: inline;">
+                                                <button type="submit" class="btn btn-danger">
+                                                    <i class="fas fa-trash"></i> Eliminar
+                                                </button>
+                                            </form>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

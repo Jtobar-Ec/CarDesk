@@ -2,6 +2,7 @@ from .base import BaseRepository
 from app.database.models import MovimientoDetalle, Item, Entrada, Consumo
 from app.database import db
 from datetime import datetime, date
+from decimal import Decimal
 
 class MovimientoRepository(BaseRepository):
     def __init__(self):
@@ -24,7 +25,8 @@ class MovimientoRepository(BaseRepository):
     
     def crear_entrada(self, item_id, cantidad, valor_unitario, usuario_id, entrada_id=None, observaciones=None):
         """Crea un movimiento de entrada"""
-        valor_total = cantidad * valor_unitario
+        valor_unitario = Decimal(str(valor_unitario))
+        valor_total = Decimal(str(cantidad)) * valor_unitario
         
         movimiento = MovimientoDetalle(
             m_fecha=date.today(),
@@ -57,7 +59,8 @@ class MovimientoRepository(BaseRepository):
         if not item or item.i_cantidad < cantidad:
             raise ValueError("Stock insuficiente")
         
-        valor_total = cantidad * valor_unitario
+        valor_unitario = Decimal(str(valor_unitario))
+        valor_total = Decimal(str(cantidad)) * valor_unitario
         
         movimiento = MovimientoDetalle(
             m_fecha=date.today(),
