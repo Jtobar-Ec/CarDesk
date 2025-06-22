@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if articulo %}Editar Artículo{% else %}Nuevo Artículo{% endif %} - Conservatorio Kardex
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-boxes"></i> 
+                {% if articulo %}Editar Artículo{% else %}Nuevo Artículo{% endif %}
+            </h1>
+            <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="codigo" class="form-label">Código *</label>
+                                <input type="text" class="form-control" id="codigo" name="codigo" 
+                                       value="{{ item.i_codigo if articulo else '' }}" required>
+                                <div class="form-text">Código único del artículo</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="cuenta_contable" class="form-label">Cuenta Contable *</label>
+                                <input type="text" class="form-control" id="cuenta_contable" name="cuenta_contable" 
+                                       value="{{ articulo.a_c_contable if articulo else '' }}" required>
+                                <div class="form-text">Código de cuenta contable</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre del Artículo *</label>
+                        <input type="text" class="form-control" id="nombre" name="nombre" 
+                               value="{{ item.i_nombre if articulo else '' }}" required>
+                        <div class="form-text">Descripción completa del artículo</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="cantidad" class="form-label">Cantidad Inicial *</label>
+                                <input type="number" class="form-control" id="cantidad" name="cantidad" 
+                                       value="{{ item.i_cantidad if articulo else '0' }}" required min="0">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="valor_unitario" class="form-label">Valor Unitario *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="valor_unitario" name="valor_unitario" 
+                                           value="{{ item.i_vUnitario if articulo else '0.00' }}" 
+                                           step="0.01" required min="0">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label class="form-label">Valor Total</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="text" class="form-control" id="valor_total" readonly>
+                                </div>
+                                <div class="form-text">Se calcula automáticamente</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="stock_min" class="form-label">Stock Mínimo</label>
+                                <input type="number" class="form-control" id="stock_min" name="stock_min" 
+                                       value="{{ articulo.a_stockMin if articulo else '5' }}" min="0">
+                                <div class="form-text">Cantidad mínima para alertas</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="stock_max" class="form-label">Stock Máximo</label>
+                                <input type="number" class="form-control" id="stock_max" name="stock_max" 
+                                       value="{{ articulo.a_stockMax if articulo else '100' }}" min="1">
+                                <div class="form-text">Cantidad máxima recomendada</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 
+                            {% if articulo %}Actualizar{% else %}Crear{% endif %} Artículo
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const cantidadInput = document.getElementById('cantidad');
+    const valorUnitarioInput = document.getElementById('valor_unitario');
+    const valorTotalInput = document.getElementById('valor_total');
+
+    function calcularTotal() {
+        const cantidad = parseFloat(cantidadInput.value) || 0;
+        const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
+        const total = cantidad * valorUnitario;
+        valorTotalInput.value = total.toFixed(2);
+    }
+
+    cantidadInput.addEventListener('input', calcularTotal);
+    valorUnitarioInput.addEventListener('input', calcularTotal);
+    
+    // Calcular total inicial
+    calcularTotal();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if proveedor %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %} - Conservatorio Kardex
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-truck"></i> 
+                {% if proveedor %}Editar Proveedor{% else %}Nuevo Proveedor{% endif %}
+            </h1>
+            <a href="{{ url_for('proveedores.listar_proveedores') }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="codigo" class="form-label">Código *</label>
+                                <input type="text" class="form-control" id="codigo" name="codigo" 
+                                       value="{{ proveedor.p_codigo if proveedor else '' }}" required>
+                                <div class="form-text">Código único del proveedor</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="ci_ruc" class="form-label">CI/RUC *</label>
+                                <input type="text" class="form-control" id="ci_ruc" name="ci_ruc" 
+                                       value="{{ proveedor.p_ci_ruc if proveedor else '' }}" required>
+                                <div class="form-text">Cédula de identidad o RUC</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="razon_social" class="form-label">Razón Social *</label>
+                        <input type="text" class="form-control" id="razon_social" name="razon_social" 
+                               value="{{ proveedor.p_razonsocial if proveedor else '' }}" required>
+                        <div class="form-text">Nombre completo o razón social del proveedor</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="direccion" class="form-label">Dirección</label>
+                        <textarea class="form-control" id="direccion" name="direccion" rows="3">{{ proveedor.p_direccion if proveedor else '' }}</textarea>
+                        <div class="form-text">Dirección completa del proveedor</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="telefono" class="form-label">Teléfono</label>
+                                <input type="tel" class="form-control" id="telefono" name="telefono" 
+                                       value="{{ proveedor.p_telefono if proveedor else '' }}">
+                                <div class="form-text">Número de teléfono de contacto</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="correo" class="form-label">Correo Electrónico</label>
+                                <input type="email" class="form-control" id="correo" name="correo" 
+                                       value="{{ proveedor.p_correo if proveedor else '' }}">
+                                <div class="form-text">Dirección de correo electrónico</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{{ url_for('proveedores.listar_proveedores') }}" class="btn btn-secondary me-md-2">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> 
+                            {% if proveedor %}Actualizar{% else %}Crear{% endif %} Proveedor
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Validación de CI/RUC
+    const ciRucInput = document.getElementById('ci_ruc');
+    
+    ciRucInput.addEventListener('input', function() {
+        const valor = this.value.replace(/\D/g, ''); // Solo números
+        this.value = valor;
+        
+        if (valor.length === 10) {
+            this.setCustomValidity('');
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        } else if (valor.length === 13) {
+            this.setCustomValidity('');
+            this.classList.remove('is-invalid');
+            this.classList.add('is-valid');
+        } else if (valor.length > 0) {
+            this.setCustomValidity('CI debe tener 10 dígitos o RUC 13 dígitos');
+            this.classList.remove('is-valid');
+            this.classList.add('is-invalid');
+        } else {
+            this.setCustomValidity('');
+            this.classList.remove('is-valid', 'is-invalid');
+        }
+    });
+
+    // Validación de teléfono
+    const telefonoInput = document.getElementById('telefono');
+    
+    telefonoInput.addEventListener('input', function() {
+        const valor = this.value.replace(/\D/g, ''); // Solo números
+        this.value = valor;
+    });
+});
+</script>
+{% endblock %}

@@ -1,5 +1,5 @@
 from datetime import datetime
-from app import db  
+from . import db
 
 # Modelo Base (para funciones comunes)
 class BaseModel(db.Model):
