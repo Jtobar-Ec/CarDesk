@@ -1,4 +1,6 @@
 from datetime import datetime
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 from . import db
 
 # Modelo Base (para funciones comunes)
@@ -18,12 +20,29 @@ class BaseModel(db.Model):
         db.session.commit()
 
 # Tablas según tu estructura
-class Usuario(BaseModel):
+class Usuario(UserMixin, BaseModel):
     __tablename__ = 'tb_usuario'
     
     u_username = db.Column(db.String(50), unique=True, nullable=False)
     u_password = db.Column(db.String(100), nullable=False)  # Almacenará el hash
     movimientos = db.relationship('MovimientoDetalle', backref='usuario', lazy=True)
+    
+    def set_password(self, password):
+        """Establece la contraseña hasheada"""
+        self.u_password = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Verifica la contraseña"""
+        return check_password_hash(self.u_password, password)
+    
+    def get_id(self):
+        """Requerido por Flask-Login"""
+        return str(self.id)
+    
+    @property
+    def username(self):
+        """Propiedad para acceder al username más fácilmente"""
+        return self.u_username
 
 class Persona(BaseModel):
     __tablename__ = 'tb_persona'
