@@ -2,6 +2,7 @@
 .env
 .env.local
 .env*.local
+ignore.env  
 
 # Python (si usas venv)
 venv/
