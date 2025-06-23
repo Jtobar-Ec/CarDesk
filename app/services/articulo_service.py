@@ -1,5 +1,7 @@
 from app.database.repositories.articulos import ArticuloRepository
 from app.database.repositories.movimientos import MovimientoRepository
+from app.database.models import Item
+from app.database import db
 
 class ArticuloService:
     def __init__(self):
@@ -30,8 +32,36 @@ class ArticuloService:
         """Alias para compatibilidad"""
         return self.obtener_articulos_stock_bajo()
 
-    def crear_articulo(self, codigo, nombre, cantidad, valor_unitario, cuenta_contable, stock_min=0, stock_max=100, usuario_id=1):
-        """Crea un nuevo artículo"""
+    def _generar_codigo_articulo(self):
+        """Genera un código automático para artículo"""
+        # Buscar todos los códigos de artículos existentes
+        items = db.session.query(Item).filter(
+            Item.i_tipo == 'articulo',
+            Item.i_codigo.like('ART%')
+        ).all()
+        
+        # Extraer números de los códigos existentes
+        numeros_existentes = []
+        for item in items:
+            try:
+                numero_str = item.i_codigo[3:]  # Quitar 'ART'
+                numero = int(numero_str)
+                numeros_existentes.append(numero)
+            except (ValueError, IndexError):
+                continue
+        
+        # Encontrar el siguiente número disponible
+        if numeros_existentes:
+            numero = max(numeros_existentes) + 1
+        else:
+            numero = 1
+        
+        return f"ART{numero:03d}"
+
+    def crear_articulo(self, nombre, cantidad, valor_unitario, cuenta_contable, stock_min=0, stock_max=100, usuario_id=1):
+        """Crea un nuevo artículo con código automático"""
+        codigo = self._generar_codigo_articulo()
+        
         item_data = {
             'i_codigo': codigo,
             'i_nombre': nombre,
@@ -126,10 +156,29 @@ class ArticuloService:
         """Obtiene los movimientos de un artículo"""
         return self.movimiento_repo.get_by_item(articulo_id)
 
-    def registrar_entrada(self, articulo_id, cantidad, valor_unitario, usuario_id, observaciones=None):
-        """Registra una entrada de artículo"""
+    def registrar_entrada(self, articulo_id, cantidad, valor_unitario, usuario_id, proveedor_id=None, observaciones=None):
+        """Registra una entrada de artículo con proveedor"""
+        from app.database.models import Entrada
+        from app import db
+        from datetime import datetime
+        
+        # Crear registro de entrada si se especifica proveedor
+        entrada_id = None
+        if proveedor_id:
+            entrada = Entrada(
+                e_fecha=datetime.now().date(),
+                e_hora=datetime.now().time(),
+                e_descripcion=observaciones or f"Entrada de artículo - Cantidad: {cantidad}",
+                e_numFactura=f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                p_id=proveedor_id
+            )
+            db.session.add(entrada)
+            db.session.flush()  # Para obtener el ID
+            entrada_id = entrada.id
+        
         return self.movimiento_repo.crear_entrada(
-            articulo_id, cantidad, valor_unitario, usuario_id, observaciones=observaciones
+            articulo_id, cantidad, valor_unitario, usuario_id,
+            entrada_id=entrada_id, observaciones=observaciones
         )
 
     def registrar_salida(self, articulo_id, cantidad, valor_unitario, usuario_id, observaciones=None):

@@ -24,24 +24,31 @@
         <div class="card">
             <div class="card-body">
                 <form method="POST">
+                    {% if proveedor %}
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="codigo" class="form-label">Código *</label>
-                                <input type="text" class="form-control" id="codigo" name="codigo" 
-                                       value="{{ proveedor.p_codigo if proveedor else '' }}" required>
-                                <div class="form-text">Código único del proveedor</div>
+                                <label class="form-label">Código</label>
+                                <input type="text" class="form-control" value="{{ proveedor.p_codigo }}" readonly>
+                                <div class="form-text">Código generado automáticamente</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="ci_ruc" class="form-label">CI/RUC *</label>
-                                <input type="text" class="form-control" id="ci_ruc" name="ci_ruc" 
+                                <input type="text" class="form-control" id="ci_ruc" name="ci_ruc"
                                        value="{{ proveedor.p_ci_ruc if proveedor else '' }}" required>
                                 <div class="form-text">Cédula de identidad o RUC</div>
                             </div>
                         </div>
                     </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label for="ci_ruc" class="form-label">CI/RUC *</label>
+                        <input type="text" class="form-control" id="ci_ruc" name="ci_ruc" required>
+                        <div class="form-text">Cédula de identidad o RUC (el código se generará automáticamente)</div>
+                    </div>
+                    {% endif %}
 
                     <div class="mb-3">
                         <label for="razon_social" class="form-label">Razón Social *</label>

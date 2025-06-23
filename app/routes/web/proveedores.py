@@ -18,7 +18,6 @@ def nuevo_proveedor():
     """Crear un nuevo proveedor"""
     if request.method == 'POST':
         try:
-            codigo = request.form['codigo']
             razon_social = request.form['razon_social']
             ci_ruc = request.form['ci_ruc']
             direccion = request.form.get('direccion')
@@ -26,7 +25,7 @@ def nuevo_proveedor():
             correo = request.form.get('correo')
             
             proveedor_service.crear_proveedor(
-                codigo, razon_social, ci_ruc, direccion, telefono, correo
+                razon_social, ci_ruc, direccion, telefono, correo
             )
             
             flash('Proveedor creado exitosamente', 'success')
@@ -40,12 +39,15 @@ def nuevo_proveedor():
 @login_required
 def detalle_proveedor(proveedor_id):
     """Ver detalles de un proveedor"""
+    from datetime import date
+    
     proveedor = proveedor_service.obtener_por_id(proveedor_id)
     if not proveedor:
         flash('Proveedor no encontrado', 'error')
         return redirect(url_for('proveedores.listar_proveedores'))
     
-    return render_template('proveedores/detail.html', proveedor=proveedor)
+    today = date.today().strftime('%Y-%m-%d')
+    return render_template('proveedores/detail.html', proveedor=proveedor, today=today)
 
 @bp.route('/<int:proveedor_id>/editar', methods=['GET', 'POST'])
 @login_required
@@ -59,7 +61,6 @@ def editar_proveedor(proveedor_id):
     if request.method == 'POST':
         try:
             datos = {
-                'p_codigo': request.form['codigo'],
                 'p_razonsocial': request.form['razon_social'],
                 'p_ci_ruc': request.form['ci_ruc'],
                 'p_direccion': request.form.get('direccion'),
@@ -79,10 +80,24 @@ def editar_proveedor(proveedor_id):
 @login_required
 def buscar_proveedores():
     """Buscar proveedores por nombre"""
-    nombre = request.args.get('nombre', '')
+    nombre = request.args.get('nombre', '').strip()
     proveedores = []
     
     if nombre:
         proveedores = proveedor_service.buscar_por_nombre(nombre)
     
     return render_template('proveedores/search.html', proveedores=proveedores, nombre=nombre)
+
+@bp.route('/<int:proveedor_id>/eliminar', methods=['POST'])
+@login_required
+def eliminar_proveedor(proveedor_id):
+    """Eliminar un proveedor"""
+    try:
+        if proveedor_service.eliminar_proveedor(proveedor_id):
+            flash('Proveedor eliminado exitosamente', 'success')
+        else:
+            flash('No se pudo eliminar el proveedor', 'error')
+    except Exception as e:
+        flash(f'Error al eliminar proveedor: {str(e)}', 'error')
+    
+    return redirect(url_for('proveedores.listar_proveedores'))

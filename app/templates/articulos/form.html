@@ -24,24 +24,31 @@
         <div class="card">
             <div class="card-body">
                 <form method="POST">
+                    {% if articulo %}
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="codigo" class="form-label">Código *</label>
-                                <input type="text" class="form-control" id="codigo" name="codigo" 
-                                       value="{{ item.i_codigo if articulo else '' }}" required>
-                                <div class="form-text">Código único del artículo</div>
+                                <label class="form-label">Código</label>
+                                <input type="text" class="form-control" value="{{ item.i_codigo }}" readonly>
+                                <div class="form-text">Código generado automáticamente</div>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="cuenta_contable" class="form-label">Cuenta Contable *</label>
-                                <input type="text" class="form-control" id="cuenta_contable" name="cuenta_contable" 
+                                <input type="text" class="form-control" id="cuenta_contable" name="cuenta_contable"
                                        value="{{ articulo.a_c_contable if articulo else '' }}" required>
                                 <div class="form-text">Código de cuenta contable</div>
                             </div>
                         </div>
                     </div>
+                    {% else %}
+                    <div class="mb-3">
+                        <label for="cuenta_contable" class="form-label">Cuenta Contable *</label>
+                        <input type="text" class="form-control" id="cuenta_contable" name="cuenta_contable" required>
+                        <div class="form-text">Código de cuenta contable (el código del artículo se generará automáticamente)</div>
+                    </div>
+                    {% endif %}
 
                     <div class="mb-3">
                         <label for="nombre" class="form-label">Nombre del Artículo *</label>
@@ -99,6 +106,19 @@
                             </div>
                         </div>
                     </div>
+
+                    {% if not articulo %}
+                    <div class="mb-3">
+                        <label for="proveedor_id" class="form-label">Proveedor *</label>
+                        <select class="form-select" id="proveedor_id" name="proveedor_id" required>
+                            <option value="">Seleccione un proveedor...</option>
+                            {% for proveedor in proveedores %}
+                            <option value="{{ proveedor.id }}">{{ proveedor.p_codigo }} - {{ proveedor.p_razonsocial }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Proveedor que suministra este artículo</div>
+                    </div>
+                    {% endif %}
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-secondary me-md-2">

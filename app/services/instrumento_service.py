@@ -24,12 +24,41 @@ class InstrumentoService:
         """Obtiene instrumentos por estado"""
         return self.repo.get_by_status(estado)
 
-    def crear_instrumento(self, codigo, nombre, marca, modelo, serie, estado, valor_unitario=0):
-        """Crea un nuevo instrumento"""
+    def _generar_codigo_instrumento(self):
+        """Genera un código automático para instrumento"""
+        # Buscar todos los códigos de instrumentos existentes
+        items = db.session.query(Item).filter(
+            Item.i_tipo == 'instrumento',
+            Item.i_codigo.like('INS%')
+        ).all()
+        
+        # Extraer números de los códigos existentes
+        numeros_existentes = []
+        for item in items:
+            try:
+                numero_str = item.i_codigo[3:]  # Quitar 'INS'
+                numero = int(numero_str)
+                numeros_existentes.append(numero)
+            except (ValueError, IndexError):
+                continue
+        
+        # Encontrar el siguiente número disponible
+        if numeros_existentes:
+            numero = max(numeros_existentes) + 1
+        else:
+            numero = 1
+        
+        return f"INS{numero:03d}"
+
+    def crear_instrumento(self, nombre, marca, modelo, serie, estado, valor_unitario=0):
+        """Crea un nuevo instrumento con código automático"""
         try:
             # Verificar que la serie no exista
             if self.repo.get_by_serial(serie):
                 raise ValueError(f"Ya existe un instrumento con la serie {serie}")
+            
+            # Generar código automático
+            codigo = self._generar_codigo_instrumento()
             
             # Primero crear el item
             item = Item(

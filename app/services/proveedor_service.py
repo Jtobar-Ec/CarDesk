@@ -1,4 +1,6 @@
 from app.database.repositories.proveedores import ProveedorRepository
+from app.database.models import Proveedor
+from app.database import db
 
 class ProveedorService:
     def __init__(self):
@@ -20,8 +22,35 @@ class ProveedorService:
         """Busca proveedores por nombre"""
         return self.repo.search_by_name(nombre)
 
-    def crear_proveedor(self, codigo, razon_social, ci_ruc, direccion=None, telefono=None, correo=None):
-        """Crea un nuevo proveedor"""
+    def _generar_codigo_proveedor(self):
+        """Genera un código automático para proveedor"""
+        # Buscar todos los códigos de proveedores existentes
+        proveedores = db.session.query(Proveedor).filter(
+            Proveedor.p_codigo.like('PROV%')
+        ).all()
+        
+        # Extraer números de los códigos existentes
+        numeros_existentes = []
+        for proveedor in proveedores:
+            try:
+                numero_str = proveedor.p_codigo[4:]  # Quitar 'PROV'
+                numero = int(numero_str)
+                numeros_existentes.append(numero)
+            except (ValueError, IndexError):
+                continue
+        
+        # Encontrar el siguiente número disponible
+        if numeros_existentes:
+            numero = max(numeros_existentes) + 1
+        else:
+            numero = 1
+        
+        return f"PROV{numero:03d}"
+
+    def crear_proveedor(self, razon_social, ci_ruc, direccion=None, telefono=None, correo=None):
+        """Crea un nuevo proveedor con código automático"""
+        codigo = self._generar_codigo_proveedor()
+        
         return self.repo.create(
             p_codigo=codigo,
             p_razonsocial=razon_social,

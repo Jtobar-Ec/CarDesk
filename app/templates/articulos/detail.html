@@ -154,6 +154,7 @@
                                 <th>Cantidad</th>
                                 <th>Valor Unit.</th>
                                 <th>Valor Total</th>
+                                <th>Proveedor</th>
                                 <th>Observaciones</th>
                             </tr>
                         </thead>
@@ -173,6 +174,18 @@
                                 <td>{{ movimiento.m_cantidad }}</td>
                                 <td>${{ "%.2f"|format(movimiento.m_valorUnitario) }}</td>
                                 <td>${{ "%.2f"|format(movimiento.m_valorTotal) }}</td>
+                                <td>
+                                    {% if movimiento.e_id %}
+                                        {% set entrada = movimiento.entrada %}
+                                        {% if entrada and entrada.proveedor %}
+                                            <small class="text-muted">{{ entrada.proveedor.p_razonsocial }}</small>
+                                        {% else %}
+                                            <small class="text-muted">Sin proveedor</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <small class="text-muted">-</small>
+                                    {% endif %}
+                                </td>
                                 <td>{{ movimiento.m_observaciones or '-' }}</td>
                             </tr>
                             {% endfor %}
@@ -202,12 +215,22 @@
             <form method="POST" action="{{ url_for('articulos.registrar_entrada', articulo_id=item.id) }}">
                 <div class="modal-body">
                     <div class="mb-3">
+                        <label class="form-label">Proveedor</label>
+                        <select class="form-select" name="proveedor_id">
+                            <option value="">Seleccionar proveedor (opcional)</option>
+                            {% for proveedor in proveedores %}
+                            <option value="{{ proveedor.id }}">{{ proveedor.p_razonsocial }} - {{ proveedor.p_codigo }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Selecciona el proveedor de donde proviene este artículo</div>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Cantidad</label>
                         <input type="number" class="form-control" name="cantidad" required min="1">
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Valor Unitario</label>
-                        <input type="number" class="form-control" name="valor_unitario" 
+                        <input type="number" class="form-control" name="valor_unitario"
                                step="0.01" required min="0" value="{{ item.i_vUnitario }}">
                     </div>
                     <div class="mb-3">

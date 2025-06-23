@@ -13,6 +13,10 @@
                 <a href="{{ url_for('proveedores.editar_proveedor', proveedor_id=proveedor.id) }}" class="btn btn-warning me-2">
                     <i class="fas fa-edit"></i> Editar
                 </a>
+                <button type="button" class="btn btn-danger me-2"
+                        onclick="confirmarEliminacion({{ proveedor.id }}, '{{ proveedor.p_razonsocial }}')">
+                    <i class="fas fa-trash"></i> Eliminar
+                </button>
                 <a href="{{ url_for('proveedores.listar_proveedores') }}" class="btn btn-secondary">
                     <i class="fas fa-arrow-left"></i> Volver
                 </a>
@@ -224,8 +228,8 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Fecha</label>
-                                <input type="date" class="form-control" name="fecha" 
-                                       value="{{ moment().format('YYYY-MM-DD') }}" required>
+                                <input type="date" class="form-control" name="fecha"
+                                       value="{{ today }}" required>
                             </div>
                         </div>
                     </div>
@@ -248,4 +252,43 @@
         </div>
     </div>
 </div>
+
+<!-- Modal de confirmación para eliminar -->
+<div class="modal fade" id="eliminarModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Eliminación</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro que desea eliminar el proveedor <strong id="nombreProveedor"></strong>?</p>
+                <p class="text-danger">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Esta acción no se puede deshacer y eliminará también todas las entradas asociadas.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="formEliminar" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-trash"></i> Eliminar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function confirmarEliminacion(proveedorId, nombreProveedor) {
+    document.getElementById('nombreProveedor').textContent = nombreProveedor;
+    document.getElementById('formEliminar').action = `/proveedores/${proveedorId}/eliminar`;
+    
+    const modal = new bootstrap.Modal(document.getElementById('eliminarModal'));
+    modal.show();
+}
+</script>
 {% endblock %}

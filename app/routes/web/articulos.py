@@ -1,9 +1,11 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from app.services import ArticuloService
+from app.services.proveedor_service import ProveedorService
 
 bp = Blueprint('articulos', __name__)
 articulo_service = ArticuloService()
+proveedor_service = ProveedorService()
 
 @bp.route('/')
 @login_required
@@ -18,31 +20,46 @@ def nuevo_articulo():
     """Crear un nuevo artículo"""
     if request.method == 'POST':
         try:
-            codigo = request.form['codigo']
             nombre = request.form['nombre']
             cantidad = int(request.form['cantidad'])
             valor_unitario = float(request.form['valor_unitario'])
             cuenta_contable = request.form['cuenta_contable']
             stock_min = int(request.form.get('stock_min', 0))
             stock_max = int(request.form.get('stock_max', 100))
+            proveedor_id = request.form.get('proveedor_id')
             
-            articulo_service.crear_articulo(
-                codigo=codigo,
+            # Convertir proveedor_id a int si existe
+            if proveedor_id and proveedor_id.strip():
+                proveedor_id = int(proveedor_id)
+            else:
+                proveedor_id = None
+            
+            articulo, item = articulo_service.crear_articulo(
                 nombre=nombre,
                 cantidad=cantidad,
                 valor_unitario=valor_unitario,
                 cuenta_contable=cuenta_contable,
                 stock_min=stock_min,
                 stock_max=stock_max,
-                usuario_id=1
+                usuario_id=current_user.id
             )
+            
+            # Si se especificó un proveedor, registrar la entrada inicial
+            if proveedor_id and cantidad > 0:
+                articulo_service.registrar_entrada(
+                    articulo.i_id, cantidad, valor_unitario, current_user.id,
+                    proveedor_id=proveedor_id,
+                    observaciones=f"Entrada inicial del artículo {item.i_codigo}"
+                )
             
             flash('Artículo creado exitosamente', 'success')
             return redirect(url_for('articulos.listar_articulos'))
         except Exception as e:
             flash(f'Error al crear artículo: {str(e)}', 'error')
     
-    return render_template('articulos/form.html')
+    # Obtener todos los proveedores para el formulario
+    proveedores = proveedor_service.obtener_todos()
+    return render_template('articulos/form.html', proveedores=proveedores)
 @bp.route('/<int:articulo_id>/detalle')
 @login_required
 def detalle_articulo(articulo_id):
@@ -54,6 +71,7 @@ def detalle_articulo(articulo_id):
     
     articulo = resultado
     item = articulo.item
+    
     # Obtener movimientos del historial
     from app.database.models import MovimientoDetalle
     from app import db
@@ -61,8 +79,12 @@ def detalle_articulo(articulo_id):
         i_id=item.id
     ).order_by(MovimientoDetalle.m_fecha.desc()).all()
     
+    # Obtener todos los proveedores para el modal
+    proveedores = proveedor_service.obtener_todos()
+    
     return render_template('articulos/detail.html',
-                         articulo=articulo, item=item, movimientos=movimientos)
+                         articulo=articulo, item=item, movimientos=movimientos,
+                         proveedores=proveedores)
 
 @bp.route('/buscar')
 def buscar_articulos():
@@ -103,7 +125,9 @@ def editar_articulo(articulo_id):
         except Exception as e:
             flash(f'Error al actualizar artículo: {str(e)}', 'error')
     
-    return render_template('articulos/form.html', articulo=articulo, item=item)
+    # Obtener todos los proveedores para el formulario (aunque no se use en edición)
+    proveedores = proveedor_service.obtener_todos()
+    return render_template('articulos/form.html', articulo=articulo, item=item, proveedores=proveedores)
 
 @bp.route('/<int:articulo_id>/eliminar', methods=['POST'])
 def eliminar_articulo(articulo_id):
@@ -150,11 +174,19 @@ def registrar_entrada(articulo_id):
     try:
         cantidad = int(request.form['cantidad'])
         valor_unitario = float(request.form['valor_unitario'])
+        proveedor_id = request.form.get('proveedor_id')
         observaciones = request.form.get('observaciones')
         usuario_id = current_user.id
         
+        # Convertir proveedor_id a int si existe
+        if proveedor_id and proveedor_id.strip():
+            proveedor_id = int(proveedor_id)
+        else:
+            proveedor_id = None
+        
         articulo_service.registrar_entrada(
-            articulo_id, cantidad, valor_unitario, usuario_id, observaciones
+            articulo_id, cantidad, valor_unitario, usuario_id,
+            proveedor_id=proveedor_id, observaciones=observaciones
         )
         
         flash('Entrada registrada exitosamente', 'success')

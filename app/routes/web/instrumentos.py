@@ -17,7 +17,6 @@ def nuevo_instrumento():
     """Crear un nuevo instrumento"""
     if request.method == 'POST':
         try:
-            codigo = request.form['codigo']
             nombre = request.form['nombre']
             marca = request.form['marca']
             modelo = request.form['modelo']
@@ -26,7 +25,7 @@ def nuevo_instrumento():
             valor_unitario = float(request.form.get('valor_unitario', 0))
             
             instrumento_service.crear_instrumento(
-                codigo, nombre, marca, modelo, serie, estado, valor_unitario
+                nombre, marca, modelo, serie, estado, valor_unitario
             )
             
             flash('Instrumento creado exitosamente', 'success')

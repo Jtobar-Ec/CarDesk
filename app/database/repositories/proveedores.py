@@ -13,6 +13,9 @@ class ProveedorRepository(BaseRepository):
         """Busca un proveedor por CI/RUC"""
         return Proveedor.query.filter_by(p_ci_ruc=ci_ruc).first()
     
-    def search_by_name(self, nombre):
-        """Busca proveedores por nombre (búsqueda parcial)"""
-        return Proveedor.query.filter(Proveedor.p_razonsocial.contains(nombre)).all()
+    def search_by_name(self, termino):
+        """Busca proveedores por nombre o código (búsqueda parcial)"""
+        return Proveedor.query.filter(
+            (Proveedor.p_razonsocial.ilike(f'%{termino}%')) |
+            (Proveedor.p_codigo.ilike(f'%{termino}%'))
+        ).all()
