@@ -26,7 +26,7 @@ def create_app():
         return Usuario.query.get(int(user_id))
     
     # Importar rutas después de inicializar la base de datos
-    from .routes.web import dashboard, instrumentos, articulos, proveedores, movimientos
+    from .routes.web import dashboard, instrumentos, articulos, proveedores, movimientos, auth
     
     # Ruta de prueba
     @app.route('/test')

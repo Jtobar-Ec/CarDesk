@@ -43,12 +43,9 @@ def nuevo_articulo():
             flash(f'Error al crear artículo: {str(e)}', 'error')
     
     return render_template('articulos/form.html')
-
 @bp.route('/<int:articulo_id>/detalle')
-def detalle_articulo(articulo_id):
-@bp.route('/<codigo>')
 @login_required
-def detalle_articulo(codigo):
+def detalle_articulo(articulo_id):
     """Ver detalles de un artículo"""
     resultado = articulo_service.obtener_articulo_por_id(articulo_id)
     if not resultado:

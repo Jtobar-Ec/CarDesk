@@ -1,5 +1,4 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
-from flask import Blueprint, render_template
 from flask_login import login_required
 from app.services import InstrumentoService
 
