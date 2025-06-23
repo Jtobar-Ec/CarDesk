@@ -15,9 +15,14 @@
                 <p class="text-muted mb-0">Genera reportes detallados del inventario y movimientos</p>
             </div>
             <div class="text-end">
-                <button id="btn-exportar" class="btn btn-success" style="display: none;">
-                    <i class="fas fa-download me-2"></i>Exportar a Excel
-                </button>
+                <div class="btn-group" id="botones-exportar" style="display: none;">
+                    <button id="btn-exportar-excel" class="btn btn-success">
+                        <i class="fas fa-file-excel me-2"></i>Exportar a Excel
+                    </button>
+                    <button id="btn-exportar-pdf" class="btn btn-danger">
+                        <i class="fas fa-file-pdf me-2"></i>Exportar a PDF
+                    </button>
+                </div>
             </div>
         </div>
         <hr class="mt-3">
@@ -45,7 +50,8 @@
                             <select class="form-select form-select-lg" id="tipo_reporte" name="tipo_reporte" required>
                                 <option value="">Selecciona un tipo de reporte</option>
                                 <option value="movimientos">📊 Movimientos (Ingresos/Egresos)</option>
-                                <option value="inventario">📦 Inventario Actual</option>
+                                <option value="inventario_articulos">📦 Inventario de Artículos</option>
+                                <option value="inventario_instrumentos">🎸 Inventario de Instrumentos</option>
                                 <option value="proveedores">🚚 Datos de Proveedores</option>
                                 <option value="consumos">👥 Consumos por Personas</option>
                             </select>
@@ -82,13 +88,36 @@
                             </div>
                         </div>
 
-                        <!-- Filtro por artículo (solo para movimientos) -->
-                        <div class="col-12" id="filtro-articulo" style="display: none;">
+                        <!-- Filtro por tipo de ítem (solo para movimientos) -->
+                        <div class="col-md-6" id="filtro-tipo-item" style="display: none;">
+                            <label for="tipo_item" class="form-label fw-bold">
+                                <i class="fas fa-tags me-2 text-info"></i>Tipo de Ítem
+                            </label>
+                            <select class="form-select form-select-lg" id="tipo_item" name="tipo_item">
+                                <option value="">Todos los ítems</option>
+                                <option value="articulo">📦 Solo Artículos</option>
+                                <option value="instrumento">🎸 Solo Instrumentos</option>
+                            </select>
+                        </div>
+
+                        <!-- Filtro por artículo específico (solo para movimientos) -->
+                        <div class="col-md-6" id="filtro-articulo" style="display: none;">
                             <label for="articulo_id" class="form-label fw-bold">
                                 <i class="fas fa-filter me-2 text-warning"></i>Filtrar por Artículo (Opcional)
                             </label>
                             <select class="form-select form-select-lg" id="articulo_id" name="articulo_id">
                                 <option value="">Todos los artículos</option>
+                            </select>
+                        </div>
+
+                        <!-- Orientación del reporte (solo para exportación) -->
+                        <div class="col-md-6" id="filtro-orientacion" style="display: none;">
+                            <label for="orientacion" class="form-label fw-bold">
+                                <i class="fas fa-rotate me-2 text-secondary"></i>Orientación de Exportación
+                            </label>
+                            <select class="form-select form-select-lg" id="orientacion" name="orientacion">
+                                <option value="vertical">📄 Vertical (Portrait)</option>
+                                <option value="horizontal">📃 Horizontal (Landscape)</option>
                             </select>
                         </div>
 
@@ -205,8 +234,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const areaResultados = document.getElementById('area-resultados');
     const contenidoReporte = document.getElementById('contenido-reporte');
     const loadingSpinner = document.getElementById('loading-spinner');
-    const btnExportar = document.getElementById('btn-exportar');
+    const botonesExportar = document.getElementById('botones-exportar');
+    const btnExportarExcel = document.getElementById('btn-exportar-excel');
+    const btnExportarPdf = document.getElementById('btn-exportar-pdf');
     const fechaGeneracion = document.getElementById('fecha-generacion');
+    
+    // Variables globales para los datos del reporte
+    let datosReporteActual = null;
+    let tipoReporteActual = null;
 
     // Mostrar/ocultar campos según selecciones
     periodo.addEventListener('change', function() {
@@ -217,21 +252,48 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    const filtroTipoItem = document.getElementById('filtro-tipo-item');
+    const tipoItemSelect = document.getElementById('tipo_item');
+    const filtroOrientacion = document.getElementById('filtro-orientacion');
+
     tipoReporte.addEventListener('change', function() {
         if (this.value === 'movimientos') {
+            filtroTipoItem.style.display = 'block';
             filtroArticulo.style.display = 'block';
             cargarArticulos();
         } else {
+            filtroTipoItem.style.display = 'none';
             filtroArticulo.style.display = 'none';
         }
+        
+        // Mostrar orientación para cualquier tipo de reporte
+        if (this.value) {
+            filtroOrientacion.style.display = 'block';
+        } else {
+            filtroOrientacion.style.display = 'none';
+        }
+    });
+
+    // Actualizar lista de artículos cuando cambie el tipo de ítem
+    tipoItemSelect.addEventListener('change', function() {
+        cargarArticulos();
     });
 
     // Cargar artículos para el filtro
     function cargarArticulos() {
-        fetch('/reportes/articulos-select')
+        const tipoItem = tipoItemSelect.value;
+        let url = '/reportes/articulos-select';
+        if (tipoItem) {
+            url += `?tipo=${tipoItem}`;
+        }
+        
+        fetch(url)
             .then(response => response.json())
             .then(data => {
-                articuloSelect.innerHTML = '<option value="">Todos los artículos</option>';
+                const labelText = tipoItem === 'articulo' ? 'Todos los artículos' :
+                                 tipoItem === 'instrumento' ? 'Todos los instrumentos' :
+                                 'Todos los ítems';
+                articuloSelect.innerHTML = `<option value="">${labelText}</option>`;
                 data.forEach(articulo => {
                     const option = document.createElement('option');
                     option.value = articulo.id;
@@ -254,7 +316,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Mostrar loading
         loadingSpinner.style.display = 'block';
         areaResultados.style.display = 'none';
-        btnExportar.style.display = 'none';
+        botonesExportar.style.display = 'none';
         
         fetch('/reportes/generar', {
             method: 'POST',
@@ -272,9 +334,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            // Guardar datos para exportación
+            datosReporteActual = data;
+            tipoReporteActual = data.tipo;
+            
             mostrarResultados(data);
             areaResultados.style.display = 'block';
-            btnExportar.style.display = 'inline-block';
+            botonesExportar.style.display = 'block';
             
             // Actualizar fecha de generación
             const ahora = new Date();
@@ -294,8 +360,11 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'movimientos':
                 html = generarReporteMovimientos(data);
                 break;
-            case 'inventario':
-                html = generarReporteInventario(data);
+            case 'inventario_articulos':
+                html = generarReporteInventarioArticulos(data);
+                break;
+            case 'inventario_instrumentos':
+                html = generarReporteInventarioInstrumentos(data);
                 break;
             case 'proveedores':
                 html = generarReporteProveedores(data);
@@ -317,12 +386,14 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<div class="row mb-4">';
             
             data.resumen.forEach(item => {
-                const color = item.tipo_movimiento === 'entrada' ? 'success' : 
-                             item.tipo_movimiento === 'salida' ? 'danger' : 'info';
+                const color = item.tipo_movimiento === 'Ingreso' ? 'success' :
+                             item.tipo_movimiento === 'Egreso' ? 'danger' : 'info';
+                const icon = item.tipo_movimiento === 'Ingreso' ? 'fas fa-arrow-up' : 'fas fa-arrow-down';
                 html += `
-                    <div class="col-md-4 mb-3">
-                        <div class="card bg-${color} text-white">
+                    <div class="col-md-6 mb-3">
+                        <div class="card bg-${color} text-white shadow-lg">
                             <div class="card-body text-center">
+                                <i class="${icon} fa-2x mb-2"></i>
                                 <h4 class="stat-number">${item.total_movimientos}</h4>
                                 <p class="stat-label">${item.tipo_movimiento.toUpperCase()}</p>
                                 <small>Cantidad: ${item.total_cantidad} | Valor: $${item.total_valor.toFixed(2)}</small>
@@ -357,8 +428,8 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
             
             data.detalles.forEach(detalle => {
-                const badgeClass = detalle.tipo === 'entrada' ? 'bg-success' : 
-                                 detalle.tipo === 'salida' ? 'bg-danger' : 'bg-info';
+                const badgeClass = detalle.tipo === 'Ingreso' ? 'bg-success' :
+                                 detalle.tipo === 'Egreso' ? 'bg-danger' : 'bg-info';
                 html += `
                     <tr>
                         <td>${detalle.fecha}</td>
@@ -381,13 +452,12 @@ document.addEventListener('DOMContentLoaded', function() {
         return html;
     }
 
-    function generarReporteInventario(data) {
+    function generarReporteInventarioArticulos(data) {
         let html = '<div class="p-4">';
         
-        // Artículos
         if (data.articulos && data.articulos.length > 0) {
-            html += '<h6 class="fw-bold mb-3"><i class="fas fa-boxes me-2"></i>Inventario de Artículos</h6>';
-            html += '<div class="table-responsive mb-4">';
+            html += '<h6 class="fw-bold mb-3"><i class="fas fa-boxes me-2 text-primary"></i>Inventario de Artículos</h6>';
+            html += '<div class="table-responsive">';
             html += '<table class="table table-hover table-reporte">';
             html += `
                 <thead>
@@ -426,9 +496,15 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '</tbody></table></div>';
         }
         
-        // Instrumentos
+        html += '</div>';
+        return html;
+    }
+
+    function generarReporteInventarioInstrumentos(data) {
+        let html = '<div class="p-4">';
+        
         if (data.instrumentos && data.instrumentos.length > 0) {
-            html += '<h6 class="fw-bold mb-3"><i class="fas fa-guitar me-2"></i>Inventario de Instrumentos</h6>';
+            html += '<h6 class="fw-bold mb-3"><i class="fas fa-guitar me-2 text-warning"></i>Inventario de Instrumentos</h6>';
             html += '<div class="table-responsive">';
             html += '<table class="table table-hover table-reporte">';
             html += `
@@ -543,9 +619,65 @@ document.addEventListener('DOMContentLoaded', function() {
         return html;
     }
 
-    // Función para exportar (placeholder)
-    btnExportar.addEventListener('click', function() {
-        alert('Funcionalidad de exportación en desarrollo');
+
+    // Función para exportar a Excel
+    btnExportarExcel.addEventListener('click', function() {
+        if (!datosReporteActual) {
+            alert('No hay datos para exportar');
+            return;
+        }
+        
+        const formData = new FormData(formReporte);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Crear formulario temporal para enviar datos
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/reportes/exportar/excel';
+        form.style.display = 'none';
+        
+        // Agregar datos del reporte
+        Object.keys(data).forEach(key => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
+    });
+
+    // Función para exportar a PDF
+    btnExportarPdf.addEventListener('click', function() {
+        if (!datosReporteActual) {
+            alert('No hay datos para exportar');
+            return;
+        }
+        
+        const formData = new FormData(formReporte);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Crear formulario temporal para enviar datos
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/reportes/exportar/pdf';
+        form.style.display = 'none';
+        
+        // Agregar datos del reporte
+        Object.keys(data).forEach(key => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = data[key];
+            form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+        document.body.removeChild(form);
     });
 });
 </script>
