@@ -1,0 +1,217 @@
+{% extends "base.html" %}
+
+{% block title %}Buscar Personal{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-search"></i> Buscar Personal
+                    </h3>
+                    <div class="card-tools">
+                        <a href="{{ url_for('personal.listar_personal') }}" class="btn btn-secondary">
+                            <i class="fas fa-list"></i> Ver Todos
+                        </a>
+                        <a href="{{ url_for('personal.nuevo_personal') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Nuevo Personal
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Formulario de búsqueda -->
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <form method="GET" action="{{ url_for('personal.buscar_personal') }}">
+                                <div class="input-group input-group-lg">
+                                    <input type="text" class="form-control" name="termino" 
+                                           placeholder="Buscar por nombre, apellido, código o CI..." 
+                                           value="{{ termino }}" autofocus>
+                                    <div class="input-group-append">
+                                        <button class="btn btn-primary" type="submit">
+                                            <i class="fas fa-search"></i> Buscar
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-muted">
+                                <small>
+                                    <i class="fas fa-info-circle"></i>
+                                    Puede buscar por nombre, apellido, código (PER001) o cédula de identidad
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {% if termino %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-search"></i>
+                            Resultados de búsqueda para: <strong>"{{ termino }}"</strong>
+                            {% if personal %}
+                                ({{ personal|length }} resultado{{ 's' if personal|length != 1 else '' }} encontrado{{ 's' if personal|length != 1 else '' }})
+                            {% endif %}
+                        </div>
+                        
+                        {% if personal %}
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Código</th>
+                                        <th>Nombre Completo</th>
+                                        <th>CI</th>
+                                        <th>Cargo</th>
+                                        <th>Teléfono</th>
+                                        <th>Correo</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for persona in personal %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ persona.pe_codigo }}</strong>
+                                        </td>
+                                        <td>
+                                            <a href="{{ url_for('personal.detalle_personal', persona_id=persona.id) }}"
+                                               class="text-decoration-none">
+                                                {{ persona.pe_nombre }} {{ persona.pe_apellido }}
+                                            </a>
+                                        </td>
+                                        <td>{{ persona.pe_ci or '-' }}</td>
+                                        <td>
+                                            {% if persona.pe_cargo %}
+                                                <span class="badge badge-info">{{ persona.pe_cargo }}</span>
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ persona.pe_telefono or '-' }}</td>
+                                        <td>{{ persona.pe_correo or '-' }}</td>
+                                        <td>
+                                            {% if persona.pe_estado == 'Activo' %}
+                                                <span class="badge badge-success">{{ persona.pe_estado }}</span>
+                                            {% else %}
+                                                <span class="badge badge-secondary">{{ persona.pe_estado }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ url_for('personal.detalle_personal', persona_id=persona.id) }}"
+                                                   class="btn btn-info btn-sm" title="Ver detalles">
+                                                    <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="{{ url_for('personal.editar_personal', persona_id=persona.id) }}"
+                                                   class="btn btn-warning btn-sm" title="Editar">
+                                                    <i class="fas fa-edit"></i>
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">No se encontraron resultados</h5>
+                            <p class="text-muted">
+                                No hay personal que coincida con el término de búsqueda "<strong>{{ termino }}</strong>".
+                            </p>
+                            <div class="mt-3">
+                                <a href="{{ url_for('personal.listar_personal') }}" class="btn btn-secondary">
+                                    <i class="fas fa-list"></i> Ver Todo el Personal
+                                </a>
+                                <a href="{{ url_for('personal.nuevo_personal') }}" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Agregar Nueva Persona
+                                </a>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% else %}
+                    <!-- Estado inicial sin búsqueda -->
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-4x text-muted mb-4"></i>
+                        <h4 class="text-muted">Buscar Personal</h4>
+                        <p class="text-muted mb-4">
+                            Ingrese un término de búsqueda para encontrar personal por nombre, apellido, código o cédula de identidad.
+                        </p>
+                        
+                        <!-- Búsquedas rápidas -->
+                        <div class="row justify-content-center">
+                            <div class="col-md-8">
+                                <h6 class="text-muted mb-3">Búsquedas rápidas:</h6>
+                                <div class="btn-group-vertical btn-group-sm" role="group">
+                                    <a href="{{ url_for('personal.personal_activo') }}" class="btn btn-outline-success mb-2">
+                                        <i class="fas fa-user-check"></i> Ver Personal Activo
+                                    </a>
+                                    <a href="{{ url_for('personal.personal_por_cargo', cargo='Profesor') }}" class="btn btn-outline-info mb-2">
+                                        <i class="fas fa-chalkboard-teacher"></i> Ver Profesores
+                                    </a>
+                                    <a href="{{ url_for('personal.personal_por_cargo', cargo='Estudiante') }}" class="btn btn-outline-primary mb-2">
+                                        <i class="fas fa-user-graduate"></i> Ver Estudiantes
+                                    </a>
+                                    <a href="{{ url_for('personal.personal_por_cargo', cargo='Administrativo') }}" class="btn btn-outline-warning mb-2">
+                                        <i class="fas fa-user-tie"></i> Ver Personal Administrativo
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Auto-focus en el campo de búsqueda
+    $('input[name="termino"]').focus();
+    
+    // Búsqueda en tiempo real (opcional)
+    let searchTimeout;
+    $('input[name="termino"]').on('input', function() {
+        clearTimeout(searchTimeout);
+        const termino = $(this).val().trim();
+        
+        if (termino.length >= 3) {
+            searchTimeout = setTimeout(function() {
+                // Aquí se podría implementar búsqueda AJAX en tiempo real
+                // Por ahora mantenemos la búsqueda por formulario
+            }, 500);
+        }
+    });
+    
+    // Resaltar términos de búsqueda en los resultados
+    {% if termino %}
+    const termino = "{{ termino }}";
+    if (termino) {
+        $('table tbody td').each(function() {
+            const text = $(this).html();
+            const regex = new RegExp(`(${termino})`, 'gi');
+            const highlightedText = text.replace(regex, '<mark>$1</mark>');
+            $(this).html(highlightedText);
+        });
+    }
+    {% endif %}
+    
+    // Limpiar búsqueda
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape') {
+            $('input[name="termino"]').val('').focus();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Detalles de {{ persona.pe_nombre }} {{ persona.pe_apellido }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-user"></i> Detalles de Personal: {{ persona.pe_nombre }} {{ persona.pe_apellido }}
+                    </h3>
+                    <div class="card-tools">
+                        <a href="{{ url_for('personal.editar_personal', persona_id=persona.id) }}"
+                           class="btn btn-warning">
+                            <i class="fas fa-edit"></i> Editar
+                        </a>
+                        <a href="{{ url_for('personal.listar_personal') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Volver
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Información Personal -->
+                        <div class="col-md-6">
+                            <div class="card card-outline card-primary">
+                                <div class="card-header">
+                                    <h5 class="card-title"><i class="fas fa-user"></i> Información Personal</h5>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Código:</strong></td>
+                                            <td>
+                                                <span class="badge badge-primary badge-lg">{{ persona.pe_codigo }}</span>
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Nombre Completo:</strong></td>
+                                            <td>{{ persona.pe_nombre }} {{ persona.pe_apellido }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Cédula de Identidad:</strong></td>
+                                            <td>{{ persona.pe_ci or 'No especificada' }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Cargo:</strong></td>
+                                            <td>
+                                                {% if persona.pe_cargo %}
+                                                    <span class="badge badge-info">{{ persona.pe_cargo }}</span>
+                                                {% else %}
+                                                    <span class="text-muted">No especificado</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Estado:</strong></td>
+                                            <td>
+                                                {% if persona.pe_estado == 'Activo' %}
+                                                    <span class="badge badge-success">{{ persona.pe_estado }}</span>
+                                                {% else %}
+                                                    <span class="badge badge-secondary">{{ persona.pe_estado }}</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Información de Contacto -->
+                        <div class="col-md-6">
+                            <div class="card card-outline card-info">
+                                <div class="card-header">
+                                    <h5 class="card-title"><i class="fas fa-address-book"></i> Información de Contacto</h5>
+                                </div>
+                                <div class="card-body">
+                                    <table class="table table-borderless">
+                                        <tr>
+                                            <td><strong>Teléfono:</strong></td>
+                                            <td>
+                                                {% if persona.pe_telefono %}
+                                                    <a href="tel:{{ persona.pe_telefono }}" class="text-decoration-none">
+                                                        <i class="fas fa-phone"></i> {{ persona.pe_telefono }}
+                                                    </a>
+                                                {% else %}
+                                                    <span class="text-muted">No especificado</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Correo Electrónico:</strong></td>
+                                            <td>
+                                                {% if persona.pe_correo %}
+                                                    <a href="mailto:{{ persona.pe_correo }}" class="text-decoration-none">
+                                                        <i class="fas fa-envelope"></i> {{ persona.pe_correo }}
+                                                    </a>
+                                                {% else %}
+                                                    <span class="text-muted">No especificado</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Dirección:</strong></td>
+                                            <td>
+                                                {% if persona.pe_direccion %}
+                                                    <i class="fas fa-map-marker-alt"></i> {{ persona.pe_direccion }}
+                                                {% else %}
+                                                    <span class="text-muted">No especificada</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Acciones Rápidas -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card card-outline card-warning">
+                                <div class="card-header">
+                                    <h5 class="card-title"><i class="fas fa-cogs"></i> Acciones Rápidas</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="btn-group" role="group">
+                                        <a href="{{ url_for('personal.editar_personal', persona_id=persona.id) }}"
+                                           class="btn btn-warning">
+                                            <i class="fas fa-edit"></i> Editar Información
+                                        </a>
+                                        
+                                        <!-- Cambiar estado -->
+                                        {% if persona.pe_estado == 'Activo' %}
+                                            <form method="POST" action="{{ url_for('personal.cambiar_estado', persona_id=persona.id) }}"
+                                                  style="display: inline;" 
+                                                  onsubmit="return confirm('¿Está seguro de desactivar a {{ persona.pe_nombre }} {{ persona.pe_apellido }}?')">
+                                                <input type="hidden" name="estado" value="Inactivo">
+                                                <button type="submit" class="btn btn-secondary">
+                                                    <i class="fas fa-user-slash"></i> Desactivar
+                                                </button>
+                                            </form>
+                                        {% else %}
+                                            <form method="POST" action="{{ url_for('personal.cambiar_estado', persona_id=persona.id) }}"
+                                                  style="display: inline;">
+                                                <input type="hidden" name="estado" value="Activo">
+                                                <button type="submit" class="btn btn-success">
+                                                    <i class="fas fa-user-check"></i> Activar
+                                                </button>
+                                            </form>
+                                        {% endif %}
+                                        
+                                        <!-- Eliminar -->
+                                        <form method="POST" action="{{ url_for('personal.eliminar_personal', persona_id=persona.id) }}"
+                                              style="display: inline;" 
+                                              onsubmit="return confirm('¿Está seguro de eliminar a {{ persona.pe_nombre }} {{ persona.pe_apellido }}? Esta acción no se puede deshacer.')">
+                                            <button type="submit" class="btn btn-danger">
+                                                <i class="fas fa-trash"></i> Eliminar
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Historial de Consumos (placeholder para futuras funcionalidades) -->
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <div class="card card-outline card-success">
+                                <div class="card-header">
+                                    <h5 class="card-title"><i class="fas fa-history"></i> Historial de Consumos</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-center py-3">
+                                        <i class="fas fa-clipboard-list fa-2x text-muted mb-2"></i>
+                                        <p class="text-muted">
+                                            El historial de consumos de artículos e instrumentos se mostrará aquí cuando esté implementado.
+                                        </p>
+                                        <small class="text-muted">
+                                            Esta funcionalidad permitirá ver todos los artículos e instrumentos que ha consumido o utilizado esta persona.
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card-footer">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle"></i>
+                                Código generado automáticamente: {{ persona.pe_codigo }}
+                            </small>
+                        </div>
+                        <div class="col-md-6 text-right">
+                            <small class="text-muted">
+                                <i class="fas fa-calendar"></i>
+                                Consultado el: {{ today }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Confirmar acciones de cambio de estado y eliminación
+    $('form[onsubmit]').on('submit', function(e) {
+        const confirmMessage = $(this).attr('onsubmit').match(/confirm\('([^']+)'\)/);
+        if (confirmMessage) {
+            if (!confirm(confirmMessage[1])) {
+                e.preventDefault();
+                return false;
+            }
+        }
+    });
+    
+    // Copiar código al clipboard
+    $('.badge-primary').on('click', function() {
+        const codigo = $(this).text();
+        navigator.clipboard.writeText(codigo).then(function() {
+            // Mostrar tooltip temporal
+            const badge = $('.badge-primary');
+            const originalText = badge.text();
+            badge.text('¡Copiado!');
+            setTimeout(function() {
+                badge.text(originalText);
+            }, 1000);
+        });
+    });
+});
+</script>
+{% endblock %}

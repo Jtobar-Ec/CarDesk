@@ -49,6 +49,13 @@ class Persona(BaseModel):
     
     pe_codigo = db.Column(db.String(20), unique=True, nullable=False)
     pe_nombre = db.Column(db.String(100), nullable=False)
+    pe_apellido = db.Column(db.String(100), nullable=False)
+    pe_ci = db.Column(db.String(20), unique=True, nullable=False)
+    pe_telefono = db.Column(db.String(15))
+    pe_correo = db.Column(db.String(100))
+    pe_direccion = db.Column(db.String(200))
+    pe_cargo = db.Column(db.String(50))  # Profesor, Estudiante, Administrativo, etc.
+    pe_estado = db.Column(db.String(20), default='Activo')  # Activo, Inactivo
     consumos = db.relationship('Consumo', backref='persona', lazy=True)
 
 class Proveedor(BaseModel):

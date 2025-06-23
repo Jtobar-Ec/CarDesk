@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}{{ "Editar Personal" if persona else "Nuevo Personal" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        {% if persona %}
+                            <i class="fas fa-edit"></i> Editar Personal: {{ persona.pe_nombre }} {{ persona.pe_apellido }}
+                        {% else %}
+                            <i class="fas fa-plus"></i> Nuevo Personal
+                        {% endif %}
+                    </h3>
+                    <div class="card-tools">
+                        <a href="{{ url_for('personal.listar_personal') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Volver
+                        </a>
+                    </div>
+                </div>
+                
+                <form method="POST" id="personalForm">
+                    <div class="card-body">
+                        <div class="row">
+                            <!-- Información básica -->
+                            <div class="col-md-6">
+                                <h5 class="mb-3"><i class="fas fa-user"></i> Información Personal</h5>
+                                
+                                <div class="form-group">
+                                    <label for="nombre">Nombre <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="nombre" name="nombre" 
+                                           value="{{ persona.pe_nombre if persona else '' }}" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="apellido">Apellido <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="apellido" name="apellido" 
+                                           value="{{ persona.pe_apellido if persona else '' }}" required>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="ci">Cédula de Identidad <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="ci" name="ci" 
+                                           value="{{ persona.pe_ci if persona else '' }}" required>
+                                    <small class="form-text text-muted">Debe ser única en el sistema</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="cargo">Cargo</label>
+                                    <select class="form-control" id="cargo" name="cargo">
+                                        <option value="">Seleccionar cargo...</option>
+                                        {% for cargo in cargos %}
+                                            <option value="{{ cargo }}" 
+                                                    {{ 'selected' if persona and persona.pe_cargo == cargo else '' }}>
+                                                {{ cargo }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="estado">Estado</label>
+                                    <select class="form-control" id="estado" name="estado">
+                                        {% for estado in estados %}
+                                            <option value="{{ estado }}" 
+                                                    {{ 'selected' if persona and persona.pe_estado == estado else ('selected' if estado == 'Activo' and not persona else '') }}>
+                                                {{ estado }}
+                                            </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Información de contacto -->
+                            <div class="col-md-6">
+                                <h5 class="mb-3"><i class="fas fa-address-book"></i> Información de Contacto</h5>
+                                
+                                <div class="form-group">
+                                    <label for="telefono">Teléfono</label>
+                                    <input type="tel" class="form-control" id="telefono" name="telefono" 
+                                           value="{{ persona.pe_telefono if persona else '' }}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="correo">Correo Electrónico</label>
+                                    <input type="email" class="form-control" id="correo" name="correo" 
+                                           value="{{ persona.pe_correo if persona else '' }}">
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label for="direccion">Dirección</label>
+                                    <textarea class="form-control" id="direccion" name="direccion" rows="3">{{ persona.pe_direccion if persona else '' }}</textarea>
+                                </div>
+                                
+                                {% if persona %}
+                                <div class="form-group">
+                                    <label>Código Asignado</label>
+                                    <input type="text" class="form-control" value="{{ persona.pe_codigo }}" readonly>
+                                    <small class="form-text text-muted">El código se genera automáticamente y no se puede modificar</small>
+                                </div>
+                                {% else %}
+                                <div class="alert alert-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <strong>Código automático:</strong> Se generará automáticamente un código único (PER001, PER002, etc.) al guardar.
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> 
+                                    {{ "Actualizar" if persona else "Guardar" }}
+                                </button>
+                                <a href="{{ url_for('personal.listar_personal') }}" class="btn btn-secondary ml-2">
+                                    <i class="fas fa-times"></i> Cancelar
+                                </a>
+                            </div>
+                            {% if persona %}
+                            <div class="col-md-6 text-right">
+                                <a href="{{ url_for('personal.detalle_personal', persona_id=persona.id) }}"
+                                   class="btn btn-info">
+                                    <i class="fas fa-eye"></i> Ver Detalles
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Validación del formulario
+    $('#personalForm').on('submit', function(e) {
+        let isValid = true;
+        let errorMessage = '';
+        
+        // Validar nombre
+        const nombre = $('#nombre').val().trim();
+        if (nombre.length < 2) {
+            isValid = false;
+            errorMessage += '- El nombre debe tener al menos 2 caracteres\n';
+        }
+        
+        // Validar apellido
+        const apellido = $('#apellido').val().trim();
+        if (apellido.length < 2) {
+            isValid = false;
+            errorMessage += '- El apellido debe tener al menos 2 caracteres\n';
+        }
+        
+        // Validar CI
+        const ci = $('#ci').val().trim();
+        if (ci.length < 5) {
+            isValid = false;
+            errorMessage += '- La cédula debe tener al menos 5 caracteres\n';
+        }
+        
+        // Validar correo si se proporciona
+        const correo = $('#correo').val().trim();
+        if (correo && !isValidEmail(correo)) {
+            isValid = false;
+            errorMessage += '- El formato del correo electrónico no es válido\n';
+        }
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('Por favor corrija los siguientes errores:\n\n' + errorMessage);
+            return false;
+        }
+    });
+    
+    // Función para validar email
+    function isValidEmail(email) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    }
+    
+    // Formatear CI mientras se escribe
+    $('#ci').on('input', function() {
+        let value = $(this).val().replace(/\D/g, ''); // Solo números
+        $(this).val(value);
+    });
+    
+    // Formatear teléfono mientras se escribe
+    $('#telefono').on('input', function() {
+        let value = $(this).val().replace(/[^\d\-\+\(\)\s]/g, ''); // Solo números y caracteres de teléfono
+        $(this).val(value);
+    });
+    
+    // Capitalizar primera letra de nombre y apellido
+    $('#nombre, #apellido').on('blur', function() {
+        let value = $(this).val().trim();
+        if (value) {
+            value = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+            $(this).val(value);
+        }
+    });
+    
+    // Convertir correo a minúsculas
+    $('#correo').on('blur', function() {
+        let value = $(this).val().trim().toLowerCase();
+        $(this).val(value);
+    });
+});
+</script>
+{% endblock %}

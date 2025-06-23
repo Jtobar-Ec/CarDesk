@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}{{ titulo or "Personal" }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title">{{ titulo or "Personal" }}</h3>
+                    <div class="card-tools">
+                        <a href="{{ url_for('personal.nuevo_personal') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Nuevo Personal
+                        </a>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Filtros y búsqueda -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <form method="GET" action="{{ url_for('personal.buscar_personal') }}">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" name="termino" 
+                                           placeholder="Buscar por nombre, apellido o código..." 
+                                           value="{{ request.args.get('termino', '') }}">
+                                    <div class="input-group-append">
+                                        <button class="btn btn-outline-secondary" type="submit">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="btn-group" role="group">
+                                <a href="{{ url_for('personal.listar_personal') }}" 
+                                   class="btn btn-outline-primary {{ 'active' if request.endpoint == 'personal.listar_personal' }}">
+                                    Todos
+                                </a>
+                                <a href="{{ url_for('personal.personal_activo') }}" 
+                                   class="btn btn-outline-success {{ 'active' if request.endpoint == 'personal.personal_activo' }}">
+                                    Activos
+                                </a>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-outline-info dropdown-toggle" 
+                                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                        Por Cargo
+                                    </button>
+                                    <div class="dropdown-menu">
+                                        <a class="dropdown-item" href="{{ url_for('personal.personal_por_cargo', cargo='Profesor') }}">Profesores</a>
+                                        <a class="dropdown-item" href="{{ url_for('personal.personal_por_cargo', cargo='Estudiante') }}">Estudiantes</a>
+                                        <a class="dropdown-item" href="{{ url_for('personal.personal_por_cargo', cargo='Administrativo') }}">Administrativos</a>
+                                        <a class="dropdown-item" href="{{ url_for('personal.personal_por_cargo', cargo='Técnico') }}">Técnicos</a>
+                                        <a class="dropdown-item" href="{{ url_for('personal.personal_por_cargo', cargo='Investigador') }}">Investigadores</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if personal %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre Completo</th>
+                                    <th>CI</th>
+                                    <th>Cargo</th>
+                                    <th>Teléfono</th>
+                                    <th>Correo</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for persona in personal %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ persona.pe_codigo }}</strong>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('personal.detalle_personal', persona_id=persona.id) }}"
+                                           class="text-decoration-none">
+                                            {{ persona.pe_nombre }} {{ persona.pe_apellido }}
+                                        </a>
+                                    </td>
+                                    <td>{{ persona.pe_ci or '-' }}</td>
+                                    <td>
+                                        {% if persona.pe_cargo %}
+                                            <span class="badge badge-info">{{ persona.pe_cargo }}</span>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ persona.pe_telefono or '-' }}</td>
+                                    <td>{{ persona.pe_correo or '-' }}</td>
+                                    <td>
+                                        {% if persona.pe_estado == 'Activo' %}
+                                            <span class="badge badge-success">{{ persona.pe_estado }}</span>
+                                        {% else %}
+                                            <span class="badge badge-secondary">{{ persona.pe_estado }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <a href="{{ url_for('personal.detalle_personal', persona_id=persona.id) }}"
+                                               class="btn btn-info btn-sm" title="Ver detalles">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('personal.editar_personal', persona_id=persona.id) }}"
+                                               class="btn btn-warning btn-sm" title="Editar">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                            
+                                            <!-- Botón cambiar estado -->
+                                            {% if persona.pe_estado == 'Activo' %}
+                                                <form method="POST" action="{{ url_for('personal.cambiar_estado', persona_id=persona.id) }}"
+                                                      style="display: inline;" 
+                                                      onsubmit="return confirm('¿Está seguro de desactivar a {{ persona.pe_nombre }} {{ persona.pe_apellido }}?')">
+                                                    <input type="hidden" name="estado" value="Inactivo">
+                                                    <button type="submit" class="btn btn-secondary btn-sm" title="Desactivar">
+                                                        <i class="fas fa-user-slash"></i>
+                                                    </button>
+                                                </form>
+                                            {% else %}
+                                                <form method="POST" action="{{ url_for('personal.cambiar_estado', persona_id=persona.id) }}"
+                                                      style="display: inline;">
+                                                    <input type="hidden" name="estado" value="Activo">
+                                                    <button type="submit" class="btn btn-success btn-sm" title="Activar">
+                                                        <i class="fas fa-user-check"></i>
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                            
+                                            <!-- Botón eliminar -->
+                                            <form method="POST" action="{{ url_for('personal.eliminar_personal', persona_id=persona.id) }}"
+                                                  style="display: inline;" 
+                                                  onsubmit="return confirm('¿Está seguro de eliminar a {{ persona.pe_nombre }} {{ persona.pe_apellido }}? Esta acción no se puede deshacer.')">
+                                                <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <p class="text-muted">
+                            <i class="fas fa-info-circle"></i>
+                            Total de registros: {{ personal|length }}
+                        </p>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No hay personal registrado</h5>
+                        <p class="text-muted">Comience agregando una nueva persona al sistema.</p>
+                        <a href="{{ url_for('personal.nuevo_personal') }}" class="btn btn-primary">
+                            <i class="fas fa-plus"></i> Agregar Primera Persona
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Inicializar DataTable si hay datos
+    {% if personal %}
+    $('table').DataTable({
+        "language": {
+            "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Spanish.json"
+        },
+        "pageLength": 25,
+        "order": [[ 0, "asc" ]],
+        "columnDefs": [
+            { "orderable": false, "targets": -1 }
+        ]
+    });
+    {% endif %}
+});
+</script>
+{% endblock %}
