@@ -1,0 +1,552 @@
+{% extends "base.html" %}
+
+{% block title %}Reportes - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<!-- Header Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="mb-2 fw-bold">
+                    <i class="fas fa-chart-bar text-primary"></i> 
+                    Sistema de Reportes
+                </h1>
+                <p class="text-muted mb-0">Genera reportes detallados del inventario y movimientos</p>
+            </div>
+            <div class="text-end">
+                <button id="btn-exportar" class="btn btn-success" style="display: none;">
+                    <i class="fas fa-download me-2"></i>Exportar a Excel
+                </button>
+            </div>
+        </div>
+        <hr class="mt-3">
+    </div>
+</div>
+
+<!-- Formulario de configuración de reportes -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-primary text-white py-3 border-0">
+                <h5 class="mb-0 fw-bold">
+                    <i class="fas fa-cogs me-2"></i> 
+                    Configuración del Reporte
+                </h5>
+            </div>
+            <div class="card-body p-4">
+                <form id="form-reporte">
+                    <div class="row g-4">
+                        <!-- Tipo de Reporte -->
+                        <div class="col-md-6">
+                            <label for="tipo_reporte" class="form-label fw-bold">
+                                <i class="fas fa-list-alt me-2 text-primary"></i>Tipo de Reporte
+                            </label>
+                            <select class="form-select form-select-lg" id="tipo_reporte" name="tipo_reporte" required>
+                                <option value="">Selecciona un tipo de reporte</option>
+                                <option value="movimientos">📊 Movimientos (Ingresos/Egresos)</option>
+                                <option value="inventario">📦 Inventario Actual</option>
+                                <option value="proveedores">🚚 Datos de Proveedores</option>
+                                <option value="consumos">👥 Consumos por Personas</option>
+                            </select>
+                        </div>
+
+                        <!-- Período -->
+                        <div class="col-md-6">
+                            <label for="periodo" class="form-label fw-bold">
+                                <i class="fas fa-calendar-alt me-2 text-primary"></i>Período
+                            </label>
+                            <select class="form-select form-select-lg" id="periodo" name="periodo" required>
+                                <option value="">Selecciona un período</option>
+                                <option value="mes_actual">📅 Mes Actual</option>
+                                <option value="año_actual">📆 Año Actual</option>
+                                <option value="personalizado">🎯 Período Personalizado</option>
+                            </select>
+                        </div>
+
+                        <!-- Fechas personalizadas (oculto inicialmente) -->
+                        <div class="col-12" id="fechas-personalizadas" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="fecha_inicio" class="form-label fw-bold">
+                                        <i class="fas fa-calendar-day me-2 text-success"></i>Fecha Inicio
+                                    </label>
+                                    <input type="date" class="form-control form-control-lg" id="fecha_inicio" name="fecha_inicio">
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="fecha_fin" class="form-label fw-bold">
+                                        <i class="fas fa-calendar-day me-2 text-danger"></i>Fecha Fin
+                                    </label>
+                                    <input type="date" class="form-control form-control-lg" id="fecha_fin" name="fecha_fin">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Filtro por artículo (solo para movimientos) -->
+                        <div class="col-12" id="filtro-articulo" style="display: none;">
+                            <label for="articulo_id" class="form-label fw-bold">
+                                <i class="fas fa-filter me-2 text-warning"></i>Filtrar por Artículo (Opcional)
+                            </label>
+                            <select class="form-select form-select-lg" id="articulo_id" name="articulo_id">
+                                <option value="">Todos los artículos</option>
+                            </select>
+                        </div>
+
+                        <!-- Botón generar -->
+                        <div class="col-12 text-center">
+                            <button type="submit" class="btn btn-primary btn-lg px-5 py-3 shadow-sm">
+                                <i class="fas fa-chart-line me-2"></i>
+                                Generar Reporte
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Área de resultados -->
+<div id="area-resultados" style="display: none;">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-success text-white py-3 border-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold">
+                            <i class="fas fa-chart-pie me-2"></i> 
+                            Resultados del Reporte
+                        </h5>
+                        <span id="fecha-generacion" class="badge bg-white text-success fw-bold"></span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div id="contenido-reporte"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading spinner -->
+<div id="loading-spinner" class="text-center py-5" style="display: none;">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+        <span class="visually-hidden">Generando reporte...</span>
+    </div>
+    <p class="mt-3 text-muted fw-bold">Generando reporte, por favor espera...</p>
+</div>
+
+<!-- CSS personalizado -->
+<style>
+.table-reporte {
+    font-size: 0.9rem;
+}
+
+.table-reporte th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    letter-spacing: 0.5px;
+}
+
+.badge-stock-bajo {
+    background-color: #dc3545 !important;
+}
+
+.badge-stock-normal {
+    background-color: #28a745 !important;
+}
+
+.resumen-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+}
+
+.resumen-card .card-body {
+    padding: 2rem;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.stat-label {
+    font-size: 1.1rem;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+    
+    .card {
+        border: none !important;
+        box-shadow: none !important;
+    }
+}
+</style>
+
+<!-- JavaScript -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const formReporte = document.getElementById('form-reporte');
+    const tipoReporte = document.getElementById('tipo_reporte');
+    const periodo = document.getElementById('periodo');
+    const fechasPersonalizadas = document.getElementById('fechas-personalizadas');
+    const filtroArticulo = document.getElementById('filtro-articulo');
+    const articuloSelect = document.getElementById('articulo_id');
+    const areaResultados = document.getElementById('area-resultados');
+    const contenidoReporte = document.getElementById('contenido-reporte');
+    const loadingSpinner = document.getElementById('loading-spinner');
+    const btnExportar = document.getElementById('btn-exportar');
+    const fechaGeneracion = document.getElementById('fecha-generacion');
+
+    // Mostrar/ocultar campos según selecciones
+    periodo.addEventListener('change', function() {
+        if (this.value === 'personalizado') {
+            fechasPersonalizadas.style.display = 'block';
+        } else {
+            fechasPersonalizadas.style.display = 'none';
+        }
+    });
+
+    tipoReporte.addEventListener('change', function() {
+        if (this.value === 'movimientos') {
+            filtroArticulo.style.display = 'block';
+            cargarArticulos();
+        } else {
+            filtroArticulo.style.display = 'none';
+        }
+    });
+
+    // Cargar artículos para el filtro
+    function cargarArticulos() {
+        fetch('/reportes/articulos-select')
+            .then(response => response.json())
+            .then(data => {
+                articuloSelect.innerHTML = '<option value="">Todos los artículos</option>';
+                data.forEach(articulo => {
+                    const option = document.createElement('option');
+                    option.value = articulo.id;
+                    option.textContent = `${articulo.codigo} - ${articulo.nombre}`;
+                    articuloSelect.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error cargando artículos:', error);
+            });
+    }
+
+    // Enviar formulario
+    formReporte.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Mostrar loading
+        loadingSpinner.style.display = 'block';
+        areaResultados.style.display = 'none';
+        btnExportar.style.display = 'none';
+        
+        fetch('/reportes/generar', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingSpinner.style.display = 'none';
+            
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+            
+            mostrarResultados(data);
+            areaResultados.style.display = 'block';
+            btnExportar.style.display = 'inline-block';
+            
+            // Actualizar fecha de generación
+            const ahora = new Date();
+            fechaGeneracion.textContent = `Generado: ${ahora.toLocaleString('es-ES')}`;
+        })
+        .catch(error => {
+            loadingSpinner.style.display = 'none';
+            console.error('Error:', error);
+            alert('Error generando el reporte');
+        });
+    });
+
+    function mostrarResultados(data) {
+        let html = '';
+        
+        switch(data.tipo) {
+            case 'movimientos':
+                html = generarReporteMovimientos(data);
+                break;
+            case 'inventario':
+                html = generarReporteInventario(data);
+                break;
+            case 'proveedores':
+                html = generarReporteProveedores(data);
+                break;
+            case 'consumos':
+                html = generarReporteConsumos(data);
+                break;
+        }
+        
+        contenidoReporte.innerHTML = html;
+    }
+
+    function generarReporteMovimientos(data) {
+        let html = '<div class="p-4">';
+        
+        // Resumen
+        if (data.resumen && data.resumen.length > 0) {
+            html += '<h6 class="fw-bold mb-3"><i class="fas fa-chart-pie me-2"></i>Resumen por Tipo de Movimiento</h6>';
+            html += '<div class="row mb-4">';
+            
+            data.resumen.forEach(item => {
+                const color = item.tipo_movimiento === 'entrada' ? 'success' : 
+                             item.tipo_movimiento === 'salida' ? 'danger' : 'info';
+                html += `
+                    <div class="col-md-4 mb-3">
+                        <div class="card bg-${color} text-white">
+                            <div class="card-body text-center">
+                                <h4 class="stat-number">${item.total_movimientos}</h4>
+                                <p class="stat-label">${item.tipo_movimiento.toUpperCase()}</p>
+                                <small>Cantidad: ${item.total_cantidad} | Valor: $${item.total_valor.toFixed(2)}</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+        
+        // Detalles
+        if (data.detalles && data.detalles.length > 0) {
+            html += '<h6 class="fw-bold mb-3"><i class="fas fa-list me-2"></i>Detalle de Movimientos (Últimos 50)</h6>';
+            html += '<div class="table-responsive">';
+            html += '<table class="table table-hover table-reporte">';
+            html += `
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Código</th>
+                        <th>Artículo</th>
+                        <th>Cantidad</th>
+                        <th>Valor Unit.</th>
+                        <th>Valor Total</th>
+                        <th>Proveedor/Persona</th>
+                        <th>Observaciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            data.detalles.forEach(detalle => {
+                const badgeClass = detalle.tipo === 'entrada' ? 'bg-success' : 
+                                 detalle.tipo === 'salida' ? 'bg-danger' : 'bg-info';
+                html += `
+                    <tr>
+                        <td>${detalle.fecha}</td>
+                        <td><span class="badge ${badgeClass}">${detalle.tipo}</span></td>
+                        <td><code>${detalle.codigo_item}</code></td>
+                        <td>${detalle.nombre_item}</td>
+                        <td class="text-center">${detalle.cantidad}</td>
+                        <td class="text-end">$${detalle.valor_unitario.toFixed(2)}</td>
+                        <td class="text-end fw-bold">$${detalle.valor_total.toFixed(2)}</td>
+                        <td>${detalle.proveedor !== 'N/A' ? detalle.proveedor : detalle.persona}</td>
+                        <td>${detalle.observaciones}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+        }
+        
+        html += '</div>';
+        return html;
+    }
+
+    function generarReporteInventario(data) {
+        let html = '<div class="p-4">';
+        
+        // Artículos
+        if (data.articulos && data.articulos.length > 0) {
+            html += '<h6 class="fw-bold mb-3"><i class="fas fa-boxes me-2"></i>Inventario de Artículos</h6>';
+            html += '<div class="table-responsive mb-4">';
+            html += '<table class="table table-hover table-reporte">';
+            html += `
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Cantidad</th>
+                        <th>Stock Mín.</th>
+                        <th>Stock Máx.</th>
+                        <th>Valor Unit.</th>
+                        <th>Valor Total</th>
+                        <th>Estado</th>
+                        <th>Cuenta Contable</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            data.articulos.forEach(articulo => {
+                const estadoBadge = articulo.estado_stock === 'Bajo' ? 'badge-stock-bajo' : 'badge-stock-normal';
+                html += `
+                    <tr>
+                        <td><code>${articulo.codigo}</code></td>
+                        <td>${articulo.nombre}</td>
+                        <td class="text-center">${articulo.cantidad}</td>
+                        <td class="text-center">${articulo.stock_min}</td>
+                        <td class="text-center">${articulo.stock_max}</td>
+                        <td class="text-end">$${articulo.valor_unitario.toFixed(2)}</td>
+                        <td class="text-end fw-bold">$${articulo.valor_total.toFixed(2)}</td>
+                        <td><span class="badge ${estadoBadge}">${articulo.estado_stock}</span></td>
+                        <td>${articulo.cuenta_contable}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+        }
+        
+        // Instrumentos
+        if (data.instrumentos && data.instrumentos.length > 0) {
+            html += '<h6 class="fw-bold mb-3"><i class="fas fa-guitar me-2"></i>Inventario de Instrumentos</h6>';
+            html += '<div class="table-responsive">';
+            html += '<table class="table table-hover table-reporte">';
+            html += `
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Marca</th>
+                        <th>Modelo</th>
+                        <th>Serie</th>
+                        <th>Estado</th>
+                        <th>Valor Unit.</th>
+                        <th>Valor Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+            `;
+            
+            data.instrumentos.forEach(instrumento => {
+                html += `
+                    <tr>
+                        <td><code>${instrumento.codigo}</code></td>
+                        <td>${instrumento.nombre}</td>
+                        <td>${instrumento.marca}</td>
+                        <td>${instrumento.modelo}</td>
+                        <td>${instrumento.serie}</td>
+                        <td><span class="badge bg-info">${instrumento.estado}</span></td>
+                        <td class="text-end">$${instrumento.valor_unitario.toFixed(2)}</td>
+                        <td class="text-end fw-bold">$${instrumento.valor_total.toFixed(2)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table></div>';
+        }
+        
+        html += '</div>';
+        return html;
+    }
+
+    function generarReporteProveedores(data) {
+        let html = '<div class="p-4">';
+        html += '<h6 class="fw-bold mb-3"><i class="fas fa-truck me-2"></i>Reporte de Proveedores</h6>';
+        html += '<div class="table-responsive">';
+        html += '<table class="table table-hover table-reporte">';
+        html += `
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Razón Social</th>
+                    <th>CI/RUC</th>
+                    <th>Dirección</th>
+                    <th>Teléfono</th>
+                    <th>Correo</th>
+                    <th>Total Entradas</th>
+                    <th>Total Compras</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        data.datos.forEach(proveedor => {
+            html += `
+                <tr>
+                    <td><code>${proveedor.codigo}</code></td>
+                    <td class="fw-semibold">${proveedor.razon_social}</td>
+                    <td>${proveedor.ci_ruc}</td>
+                    <td>${proveedor.direccion}</td>
+                    <td>${proveedor.telefono}</td>
+                    <td>${proveedor.correo}</td>
+                    <td class="text-center">${proveedor.total_entradas}</td>
+                    <td class="text-end fw-bold">$${proveedor.total_compras.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div></div>';
+        return html;
+    }
+
+    function generarReporteConsumos(data) {
+        let html = '<div class="p-4">';
+        html += '<h6 class="fw-bold mb-3"><i class="fas fa-users me-2"></i>Reporte de Consumos por Personas</h6>';
+        html += '<div class="table-responsive">';
+        html += '<table class="table table-hover table-reporte">';
+        html += `
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th>Total Consumos</th>
+                    <th>Total Cantidad</th>
+                    <th>Total Valor</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        data.datos.forEach(persona => {
+            html += `
+                <tr>
+                    <td><code>${persona.codigo}</code></td>
+                    <td class="fw-semibold">${persona.nombre}</td>
+                    <td class="text-center">${persona.total_consumos}</td>
+                    <td class="text-center">${persona.total_cantidad}</td>
+                    <td class="text-end fw-bold">$${persona.total_valor.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div></div>';
+        return html;
+    }
+
+    // Función para exportar (placeholder)
+    btnExportar.addEventListener('click', function() {
+        alert('Funcionalidad de exportación en desarrollo');
+    });
+});
+</script>
+{% endblock %}
