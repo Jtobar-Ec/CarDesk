@@ -1,10 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template
+from flask_login import login_required
 from app.services import InstrumentoService
 
 bp = Blueprint('instrumentos', __name__)
 instrumento_service = InstrumentoService()
 
 @bp.route('/')
+@login_required
 def listar_instrumentos():
     """Lista todos los instrumentos"""
     instrumentos = instrumento_service.obtener_todos()
