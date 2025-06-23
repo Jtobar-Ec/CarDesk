@@ -22,13 +22,14 @@ class PersonalRepository(BaseRepository):
         return Persona.query.filter_by(pe_cargo=cargo).all()
     
     def search_by_name(self, termino):
-        """Busca personas por nombre, apellido o código (búsqueda parcial)"""
+        """Busca personas por nombre, apellido, código o CI"""
         return Persona.query.filter(
             (Persona.pe_nombre.ilike(f'%{termino}%')) |
             (Persona.pe_apellido.ilike(f'%{termino}%')) |
-            (Persona.pe_codigo.ilike(f'%{termino}%'))
+            (Persona.pe_codigo.ilike(f'%{termino}%')) |
+            (Persona.pe_ci.ilike(f'%{termino}%'))
         ).all()
     
     def get_activos(self):
-        """Obtiene solo las personas activas"""
+        """Obtiene todas las personas activas"""
         return Persona.query.filter_by(pe_estado='Activo').all()

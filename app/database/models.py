@@ -49,14 +49,24 @@ class Persona(BaseModel):
     
     pe_codigo = db.Column(db.String(20), unique=True, nullable=False)
     pe_nombre = db.Column(db.String(100), nullable=False)
-    pe_apellido = db.Column(db.String(100), nullable=False)
-    pe_ci = db.Column(db.String(20), unique=True, nullable=False)
+    pe_apellido = db.Column(db.String(100))
+    pe_ci = db.Column(db.String(20))
     pe_telefono = db.Column(db.String(15))
     pe_correo = db.Column(db.String(100))
     pe_direccion = db.Column(db.String(200))
-    pe_cargo = db.Column(db.String(50))  # Profesor, Estudiante, Administrativo, etc.
-    pe_estado = db.Column(db.String(20), default='Activo')  # Activo, Inactivo
+    pe_cargo = db.Column(db.String(50))
+    pe_estado = db.Column(db.String(20), default='Activo')
+    # Relaciones
     consumos = db.relationship('Consumo', backref='persona', lazy=True)
+    
+    
+    def get_nombre_completo(self):
+        """Retorna el nombre completo"""
+        return self.pe_nombre
+    
+    def get_primer_nombre(self):
+        """Retorna solo el primer nombre"""
+        return self.pe_nombre.split(' ')[0] if self.pe_nombre else ''
 
 class Proveedor(BaseModel):
     __tablename__ = 'tb_proveedores'

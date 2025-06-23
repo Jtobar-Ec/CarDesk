@@ -72,15 +72,16 @@ def editar_personal(persona_id):
     
     if request.method == 'POST':
         try:
+            # Obtener todos los campos del formulario
             datos = {
-                'pe_nombre': request.form['nombre'],
-                'pe_apellido': request.form['apellido'],
-                'pe_ci': request.form['ci'],
-                'pe_telefono': request.form.get('telefono'),
-                'pe_correo': request.form.get('correo'),
-                'pe_direccion': request.form.get('direccion'),
-                'pe_cargo': request.form.get('cargo'),
-                'pe_estado': request.form.get('estado')
+                'nombre': request.form['nombre'],
+                'apellido': request.form.get('apellido', ''),
+                'ci': request.form.get('ci', ''),
+                'telefono': request.form.get('telefono', ''),
+                'correo': request.form.get('correo', ''),
+                'direccion': request.form.get('direccion', ''),
+                'cargo': request.form.get('cargo', ''),
+                'estado': request.form.get('estado', 'Activo')
             }
             
             personal_service.actualizar_persona(persona_id, **datos)

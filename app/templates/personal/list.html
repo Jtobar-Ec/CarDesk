@@ -84,7 +84,7 @@
                                     <td>
                                         <a href="{{ url_for('personal.detalle_personal', persona_id=persona.id) }}"
                                            class="text-decoration-none">
-                                            {{ persona.pe_nombre }} {{ persona.pe_apellido }}
+                                            {{ persona.pe_nombre }}
                                         </a>
                                     </td>
                                     <td>{{ persona.pe_ci or '-' }}</td>
@@ -118,8 +118,8 @@
                                             <!-- Botón cambiar estado -->
                                             {% if persona.pe_estado == 'Activo' %}
                                                 <form method="POST" action="{{ url_for('personal.cambiar_estado', persona_id=persona.id) }}"
-                                                      style="display: inline;" 
-                                                      onsubmit="return confirm('¿Está seguro de desactivar a {{ persona.pe_nombre }} {{ persona.pe_apellido }}?')">
+                                                      style="display: inline;"
+                                                      onsubmit="return confirm('¿Está seguro de desactivar a {{ persona.pe_nombre }}?')">
                                                     <input type="hidden" name="estado" value="Inactivo">
                                                     <button type="submit" class="btn btn-secondary btn-sm" title="Desactivar">
                                                         <i class="fas fa-user-slash"></i>
@@ -137,8 +137,8 @@
                                             
                                             <!-- Botón eliminar -->
                                             <form method="POST" action="{{ url_for('personal.eliminar_personal', persona_id=persona.id) }}"
-                                                  style="display: inline;" 
-                                                  onsubmit="return confirm('¿Está seguro de eliminar a {{ persona.pe_nombre }} {{ persona.pe_apellido }}? Esta acción no se puede deshacer.')">
+                                                  style="display: inline;"
+                                                  onsubmit="return confirm('¿Está seguro de eliminar a {{ persona.pe_nombre }}? Esta acción no se puede deshacer.')">
                                                 <button type="submit" class="btn btn-danger btn-sm" title="Eliminar">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
