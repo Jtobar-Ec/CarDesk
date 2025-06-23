@@ -56,8 +56,6 @@ class Persona(BaseModel):
     pe_direccion = db.Column(db.String(200))
     pe_cargo = db.Column(db.String(50))
     pe_estado = db.Column(db.String(20), default='Activo')
-    # Relaciones
-    consumos = db.relationship('Consumo', backref='persona', lazy=True)
     
     
     def get_nombre_completo(self):
@@ -142,12 +140,28 @@ class Stock(BaseModel):
 class Consumo(BaseModel):
     __tablename__ = 'tb_consumo'
     
-    c_numero = db.Column(db.Integer, nullable=False)
+    c_numero = db.Column(db.Integer, nullable=False, default=1)
     c_fecha = db.Column(db.Date, nullable=False)
     c_hora = db.Column(db.Time, nullable=False)
-    c_descripcion = db.Column(db.String(200), nullable=False)
+    c_descripcion = db.Column(db.String(200), nullable=False, default='Asignación de artículo')
+    c_cantidad = db.Column(db.Integer, nullable=False)
+    c_valorUnitario = db.Column(db.Numeric(10, 2), nullable=False)
+    c_valorTotal = db.Column(db.Numeric(10, 2), nullable=False)
+    c_observaciones = db.Column(db.String(500))
+    c_estado = db.Column(db.String(20), default='Asignado')  # Asignado, Devuelto, Perdido, Dañado
     pe_id = db.Column(db.Integer, db.ForeignKey('tb_persona.id'), nullable=False)
-    movimientos = db.relationship('MovimientoDetalle', backref='consumo', lazy=True)
+    i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), nullable=False)
+    u_id = db.Column(db.Integer, db.ForeignKey('tb_usuario.id'), nullable=False)
+    
+    # Relaciones
+    persona = db.relationship('Persona', backref='consumos')
+    item = db.relationship('Item', backref='consumos')
+    usuario = db.relationship('Usuario', backref='consumos_usuario')
+    
+    @property
+    def c_id(self):
+        """Alias para compatibilidad con templates"""
+        return self.id
 
 class Entrada(BaseModel):
     __tablename__ = 'tb_entrada'

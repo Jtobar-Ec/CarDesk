@@ -30,10 +30,21 @@
                             <i class="fas fa-guitar"></i> Instrumentos
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('articulos.listar_articulos') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="articulosDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-boxes"></i> Artículos
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('articulos.listar_articulos') }}">
+                                <i class="fas fa-list"></i> Lista de Artículos
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('articulos.listar_asignaciones') }}">
+                                <i class="fas fa-user-check"></i> Asignaciones
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('articulos.stock_bajo') }}">
+                                <i class="fas fa-exclamation-triangle"></i> Stock Bajo
+                            </a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('proveedores.listar_proveedores') }}">

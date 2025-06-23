@@ -186,3 +186,44 @@ class ArticuloService:
         return self.movimiento_repo.crear_salida(
             articulo_id, cantidad, valor_unitario, usuario_id, observaciones=observaciones
         )
+
+    def registrar_salida_con_asignacion(self, articulo_id, cantidad, valor_unitario, usuario_id, persona_id, observaciones=None):
+        """Registra una salida de artículo con asignación a personal"""
+        from app.database.models import Consumo, Persona
+        from app import db
+        from datetime import datetime
+        
+        # Verificar que la persona existe y está activa
+        persona = Persona.query.get(persona_id)
+        if not persona:
+            raise ValueError("La persona seleccionada no existe")
+        
+        if persona.pe_estado != 'Activo':
+            raise ValueError("Solo se puede asignar artículos a personal activo")
+        
+        # Registrar la salida normal
+        movimiento = self.movimiento_repo.crear_salida(
+            articulo_id, cantidad, valor_unitario, usuario_id,
+            observaciones=f"Asignado a: {persona.pe_nombre} {persona.pe_apellido or ''} - {observaciones or ''}"
+        )
+        
+        # Crear registro de consumo (asignación)
+        consumo = Consumo(
+            c_numero=1,  # Número secuencial por consumo
+            c_fecha=datetime.now().date(),
+            c_hora=datetime.now().time(),
+            c_descripcion=f"Asignación de {cantidad} unidades de artículo a {persona.pe_nombre}",
+            c_cantidad=cantidad,
+            c_valorUnitario=valor_unitario,
+            c_valorTotal=cantidad * valor_unitario,
+            c_observaciones=observaciones or f"Artículo asignado para uso de {persona.pe_cargo or 'personal'}",
+            c_estado='Asignado',
+            pe_id=persona_id,
+            i_id=articulo_id,
+            u_id=usuario_id
+        )
+        
+        db.session.add(consumo)
+        db.session.commit()
+        
+        return movimiento, consumo

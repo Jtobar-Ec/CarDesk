@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
 from app.services.personal_service import PersonalService
 from datetime import date
@@ -147,3 +147,36 @@ def personal_por_cargo(cargo):
     """Lista personal por cargo"""
     personal = personal_service.obtener_por_cargo(cargo)
     return render_template('personal/list.html', personal=personal, titulo=f"Personal - {cargo}")
+
+@bp.route('/api/activos')
+@login_required
+def api_personal_activo():
+    """API endpoint para obtener personal activo en formato JSON"""
+    try:
+        personal = personal_service.obtener_activos()
+        personal_data = []
+        
+        for persona in personal:
+            personal_data.append({
+                'id': persona.id,
+                'nombre': persona.pe_nombre,
+                'apellido': persona.pe_apellido or '',
+                'ci': persona.pe_ci or '',
+                'telefono': persona.pe_telefono or '',
+                'correo': persona.pe_correo or '',
+                'direccion': persona.pe_direccion or '',
+                'cargo': persona.pe_cargo or '',
+                'estado': persona.pe_estado
+            })
+        
+        return jsonify({
+            'success': True,
+            'personal': personal_data,
+            'total': len(personal_data)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'personal': []
+        }), 500

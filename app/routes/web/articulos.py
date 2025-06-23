@@ -195,24 +195,107 @@ def registrar_entrada(articulo_id):
     
     return redirect(request.referrer or url_for('articulos.listar_articulos'))
 
+@bp.route('/asignaciones')
+@login_required
+def listar_asignaciones():
+    """Lista todas las asignaciones de artículos a personal"""
+    from app.database.models import Consumo, Persona, Item
+    from app import db
+    
+    # Obtener todas las asignaciones con información del personal y artículo
+    asignaciones = db.session.query(Consumo, Persona, Item).join(
+        Persona, Consumo.pe_id == Persona.id
+    ).join(
+        Item, Consumo.i_id == Item.id
+    ).order_by(Consumo.c_fecha.desc(), Consumo.c_hora.desc()).all()
+    
+    return render_template('articulos/asignaciones.html', asignaciones=asignaciones)
+
+@bp.route('/asignaciones/<int:persona_id>')
+@login_required
+def asignaciones_por_persona(persona_id):
+    """Lista las asignaciones de una persona específica"""
+    from app.database.models import Consumo, Persona, Item
+    from app import db
+    
+    # Verificar que la persona existe
+    persona = Persona.query.get(persona_id)
+    if not persona:
+        flash('Persona no encontrada', 'error')
+        return redirect(url_for('articulos.listar_asignaciones'))
+    
+    # Obtener asignaciones de la persona
+    asignaciones = db.session.query(Consumo, Persona, Item).join(
+        Persona, Consumo.pe_id == Persona.id
+    ).join(
+        Item, Consumo.i_id == Item.id
+    ).filter(Consumo.pe_id == persona_id).order_by(
+        Consumo.c_fecha.desc(), Consumo.c_hora.desc()
+    ).all()
+    
+    return render_template('articulos/asignaciones.html',
+                         asignaciones=asignaciones,
+                         persona_filtro=persona)
+
+@bp.route('/asignaciones/<int:consumo_id>/cambiar-estado', methods=['POST'])
+@login_required
+def cambiar_estado_asignacion(consumo_id):
+    """Cambia el estado de una asignación"""
+    from app.database.models import Consumo
+    from app import db
+    
+    try:
+        consumo = Consumo.query.get(consumo_id)
+        if not consumo:
+            flash('Asignación no encontrada', 'error')
+            return redirect(url_for('articulos.listar_asignaciones'))
+        
+        nuevo_estado = request.form['nuevo_estado']
+        observaciones = request.form.get('observaciones', '')
+        
+        # Actualizar el estado
+        consumo.c_estado = nuevo_estado
+        
+        # Agregar observaciones del cambio
+        if observaciones:
+            obs_anterior = consumo.c_observaciones or ''
+            consumo.c_observaciones = f"{obs_anterior}\n[{nuevo_estado}] {observaciones}".strip()
+        
+        db.session.commit()
+        
+        flash(f'Estado cambiado a "{nuevo_estado}" exitosamente', 'success')
+    except Exception as e:
+        flash(f'Error al cambiar estado: {str(e)}', 'error')
+    
+    return redirect(request.referrer or url_for('articulos.listar_asignaciones'))
+
 @bp.route('/<int:articulo_id>/salida', methods=['POST'])
 @login_required
 def registrar_salida(articulo_id):
-    """Registra una salida de artículo"""
+    """Registra una salida de artículo con asignación a personal"""
     try:
         cantidad = int(request.form['cantidad'])
         valor_unitario = float(request.form['valor_unitario'])
-        observaciones = request.form.get('observaciones')
+        observaciones = request.form.get('observaciones', '')
+        persona_id = request.form.get('persona_id')
         usuario_id = current_user.id
         
-        articulo_service.registrar_salida(
-            articulo_id, cantidad, valor_unitario, usuario_id, observaciones
+        # Validar que se haya seleccionado una persona
+        if not persona_id:
+            flash('Debe seleccionar una persona para asignar el artículo', 'error')
+            return redirect(request.referrer or url_for('articulos.listar_articulos'))
+        
+        persona_id = int(persona_id)
+        
+        # Registrar la salida con asignación a personal
+        articulo_service.registrar_salida_con_asignacion(
+            articulo_id, cantidad, valor_unitario, usuario_id, persona_id, observaciones
         )
         
-        flash('Salida registrada exitosamente', 'success')
+        flash('Artículo asignado exitosamente al personal', 'success')
     except ValueError as e:
         flash(str(e), 'error')
     except Exception as e:
-        flash(f'Error al registrar salida: {str(e)}', 'error')
+        flash(f'Error al asignar artículo: {str(e)}', 'error')
     
     return redirect(request.referrer or url_for('articulos.listar_articulos'))

@@ -13,6 +13,9 @@
                 {% endif %}
             </h1>
             <div>
+                <a href="{{ url_for('articulos.listar_asignaciones') }}" class="btn btn-info me-2">
+                    <i class="fas fa-user-check"></i> Asignaciones
+                </a>
                 <a href="{{ url_for('articulos.stock_bajo') }}" class="btn btn-warning me-2">
                     <i class="fas fa-exclamation-triangle"></i> Stock Bajo
                 </a>
@@ -182,35 +185,76 @@
 
                             <!-- Modal para salida -->
                             <div class="modal fade" id="salidaModal{{ item.id }}" tabindex="-1">
-                                <div class="modal-dialog">
+                                <div class="modal-dialog modal-lg">
                                     <div class="modal-content">
                                         <div class="modal-header">
-                                            <h5 class="modal-title">Registrar Salida - {{ item.i_nombre }}</h5>
+                                            <h5 class="modal-title">
+                                                <i class="fas fa-user-minus"></i> Asignar Artículo a Personal - {{ item.i_nombre }}
+                                            </h5>
                                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                         </div>
                                         <form method="POST" action="{{ url_for('articulos.registrar_salida', articulo_id=item.id) }}">
                                             <div class="modal-body">
-                                                <div class="alert alert-info">
-                                                    <strong>Stock disponible:</strong> {{ item.i_cantidad }} unidades
+                                                <div class="row">
+                                                    <div class="col-md-6">
+                                                        <div class="alert alert-info">
+                                                            <i class="fas fa-info-circle"></i>
+                                                            <strong>Stock disponible:</strong> {{ item.i_cantidad }} unidades
+                                                        </div>
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label">
+                                                                <i class="fas fa-user"></i> Asignar a Personal <span class="text-danger">*</span>
+                                                            </label>
+                                                            <select class="form-select" name="persona_id" required id="personaSelect{{ item.id }}">
+                                                                <option value="">Seleccionar persona...</option>
+                                                                <!-- Se llenará dinámicamente con JavaScript -->
+                                                            </select>
+                                                            <div class="form-text">Solo se muestran personas activas</div>
+                                                        </div>
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label">
+                                                                <i class="fas fa-hashtag"></i> Cantidad
+                                                            </label>
+                                                            <input type="number" class="form-control" name="cantidad"
+                                                                   required min="1" max="{{ item.i_cantidad }}" value="1">
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div class="col-md-6">
+                                                        <div class="mb-3">
+                                                            <label class="form-label">
+                                                                <i class="fas fa-dollar-sign"></i> Valor Unitario
+                                                            </label>
+                                                            <input type="number" class="form-control" name="valor_unitario"
+                                                                   step="0.01" required min="0" value="{{ item.i_vUnitario }}" readonly>
+                                                            <div class="form-text">Valor automático del artículo</div>
+                                                        </div>
+                                                        
+                                                        <div class="mb-3">
+                                                            <label class="form-label">
+                                                                <i class="fas fa-comment"></i> Descripción del uso
+                                                            </label>
+                                                            <textarea class="form-control" name="observaciones" rows="3"
+                                                                      placeholder="Ej: Para clase de piano, proyecto de investigación, etc."></textarea>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Cantidad</label>
-                                                    <input type="number" class="form-control" name="cantidad" 
-                                                           required min="1" max="{{ item.i_cantidad }}">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Valor Unitario</label>
-                                                    <input type="number" class="form-control" name="valor_unitario" 
-                                                           step="0.01" required min="0" value="{{ item.i_vUnitario }}">
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label">Observaciones</label>
-                                                    <textarea class="form-control" name="observaciones" rows="3"></textarea>
+                                                
+                                                <!-- Información del personal seleccionado -->
+                                                <div id="infoPersonal{{ item.id }}" class="alert alert-light d-none">
+                                                    <h6><i class="fas fa-user-check"></i> Información del Personal:</h6>
+                                                    <div id="datosPersonal{{ item.id }}"></div>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
-                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                                <button type="submit" class="btn btn-danger">Registrar Salida</button>
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                    <i class="fas fa-times"></i> Cancelar
+                                                </button>
+                                                <button type="submit" class="btn btn-danger">
+                                                    <i class="fas fa-user-minus"></i> Asignar Artículo
+                                                </button>
                                             </div>
                                         </form>
                                     </div>
@@ -302,4 +346,76 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Cargar personal activo cuando se abra cualquier modal de salida
+    const salidaModals = document.querySelectorAll('[id^="salidaModal"]');
+    
+    salidaModals.forEach(modal => {
+        modal.addEventListener('show.bs.modal', function() {
+            const modalId = this.id;
+            const itemId = modalId.replace('salidaModal', '');
+            const selectPersona = document.getElementById('personaSelect' + itemId);
+            const infoPersonal = document.getElementById('infoPersonal' + itemId);
+            const datosPersonal = document.getElementById('datosPersonal' + itemId);
+            
+            // Limpiar select y ocultar info
+            selectPersona.innerHTML = '<option value="">Cargando personal...</option>';
+            infoPersonal.classList.add('d-none');
+            
+            // Cargar personal activo
+            fetch('/personal/api/activos')
+                .then(response => response.json())
+                .then(data => {
+                    selectPersona.innerHTML = '<option value="">Seleccionar persona...</option>';
+                    
+                    if (data.success && data.personal.length > 0) {
+                        data.personal.forEach(persona => {
+                            const option = document.createElement('option');
+                            option.value = persona.id;
+                            option.textContent = `${persona.nombre} ${persona.apellido} - ${persona.cargo}`;
+                            option.dataset.persona = JSON.stringify(persona);
+                            selectPersona.appendChild(option);
+                        });
+                    } else {
+                        selectPersona.innerHTML = '<option value="">No hay personal activo disponible</option>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cargando personal:', error);
+                    selectPersona.innerHTML = '<option value="">Error cargando personal</option>';
+                });
+            
+            // Manejar cambio de selección de personal
+            selectPersona.addEventListener('change', function() {
+                if (this.value) {
+                    const selectedOption = this.options[this.selectedIndex];
+                    const persona = JSON.parse(selectedOption.dataset.persona);
+                    
+                    datosPersonal.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Nombre:</strong> ${persona.nombre} ${persona.apellido}<br>
+                                <strong>CI:</strong> ${persona.ci}<br>
+                                <strong>Cargo:</strong> ${persona.cargo}
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Teléfono:</strong> ${persona.telefono || 'No registrado'}<br>
+                                <strong>Correo:</strong> ${persona.correo || 'No registrado'}<br>
+                                <strong>Estado:</strong> <span class="badge bg-success">Activo</span>
+                            </div>
+                        </div>
+                    `;
+                    infoPersonal.classList.remove('d-none');
+                } else {
+                    infoPersonal.classList.add('d-none');
+                }
+            });
+        });
+    });
+});
+</script>
 {% endblock %}
