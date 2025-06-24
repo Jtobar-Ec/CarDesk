@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de Backups{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-cog"></i> Configuración de Backups</h2>
+                <a href="{{ url_for('backups.index') }}" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Volver a Backups
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Configuración de Google Drive -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title">
+                        <i class="fab fa-google-drive"></i> Configuración de Google Drive
+                        {% if drive_configured %}
+                            <span class="badge bg-success ms-2">Configurado</span>
+                        {% else %}
+                            <span class="badge bg-warning ms-2">No Configurado</span>
+                        {% endif %}
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if not drive_configured %}
+                        <div class="alert alert-info">
+                            <h5><i class="fas fa-info-circle"></i> Configurar tu Cuenta de Google Drive</h5>
+                            <p>Para usar Google Drive, necesitas crear tu propio proyecto en Google Cloud Console y obtener las credenciales.</p>
+                        </div>
+
+                        <!-- Instrucciones -->
+                        <div class="accordion mb-4" id="setupAccordion">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="headingInstructions">
+                                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseInstructions">
+                                        <i class="fas fa-list-ol"></i> &nbsp; Cómo Obtener Credenciales
+                                    </button>
+                                </h2>
+                                <div id="collapseInstructions" class="accordion-collapse collapse show" data-bs-parent="#setupAccordion">
+                                    <div class="accordion-body">
+                                        <ol class="list-group list-group-numbered">
+                                            <li class="list-group-item">Ve a <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                                            <li class="list-group-item">Crea un nuevo proyecto o selecciona uno existente</li>
+                                            <li class="list-group-item">Habilita la API de Google Drive</li>
+                                            <li class="list-group-item">Ve a "Credenciales" → "Crear credenciales" → "ID de cliente OAuth 2.0"</li>
+                                            <li class="list-group-item">Selecciona "Aplicación de escritorio"</li>
+                                            <li class="list-group-item">Descarga el archivo JSON</li>
+                                            <li class="list-group-item">Sube el archivo aquí usando el formulario de abajo</li>
+                                        </ol>
+                                        
+                                        <div class="mt-3">
+                                            <h6>Permisos Requeridos:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><code>https://www.googleapis.com/auth/drive.file</code></li>
+                                            </ul>
+                                            <small class="text-muted">Solo accede a archivos que crea la aplicación</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Formulario de configuración -->
+                        <form action="{{ url_for('backups.setup_google_drive') }}" method="POST" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="credentials_file" class="form-label">
+                                    <i class="fas fa-upload"></i> Archivo de Credenciales JSON
+                                </label>
+                                <input type="file" class="form-control" id="credentials_file" name="credentials_file"
+                                       accept=".json" onchange="previewCredentials()">
+                                <div class="form-text">
+                                    Selecciona el archivo JSON descargado de Google Cloud Console.
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3" style="display: none;" id="credentials_preview">
+                                <label for="credentials_text" class="form-label">Vista Previa de Credenciales</label>
+                                <textarea class="form-control" id="credentials_text" name="credentials" rows="8" readonly></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn btn-primary" id="submit_btn" disabled>
+                                <i class="fas fa-save"></i> Configurar Google Drive
+                            </button>
+                        </form>
+                    {% else %}
+                        <div class="alert alert-success">
+                            <h5><i class="fas fa-check-circle"></i> Google Drive Configurado</h5>
+                            <p class="mb-0">Los backups se pueden subir automáticamente a tu cuenta de Google Drive.</p>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-warning" onclick="resetGoogleDrive()">
+                                <i class="fas fa-redo"></i> Reconfigurar
+                            </button>
+                            <button type="button" class="btn btn-info" onclick="testDriveConnection()">
+                                <i class="fas fa-plug"></i> Probar Conexión
+                            </button>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de información -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">
+                        <i class="fas fa-info"></i> Información de Backups
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <h6>Política de Backups:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-calendar-week text-primary"></i> <strong>Semanales:</strong> Domingos 2:00 AM</li>
+                        <li><i class="fas fa-calendar-alt text-info"></i> <strong>Mensuales:</strong> Primer domingo 3:00 AM</li>
+                        <li><i class="fas fa-cloud text-success"></i> <strong>Google Drive:</strong> Solo mensuales</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>Retención de Datos:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-hdd text-warning"></i> <strong>Local:</strong> 30 días</li>
+                        <li><i class="fas fa-cloud text-primary"></i> <strong>Nube:</strong> 6 meses</li>
+                    </ul>
+
+                    <hr>
+
+                    <h6>Datos Incluidos:</h6>
+                    <ul class="list-unstyled small">
+                        <li><i class="fas fa-users"></i> Personal</li>
+                        <li><i class="fas fa-boxes"></i> Artículos</li>
+                        <li><i class="fas fa-guitar"></i> Instrumentos</li>
+                        <li><i class="fas fa-truck"></i> Proveedores</li>
+                        <li><i class="fas fa-exchange-alt"></i> Movimientos</li>
+                        <li><i class="fas fa-user-check"></i> Asignaciones</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Configuración avanzada -->
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="card-title">
+                        <i class="fas fa-cogs"></i> Configuración Avanzada
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Compresión de Backups</label>
+                        <select class="form-select" disabled>
+                            <option selected>ZIP (Recomendado)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Encriptación</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" disabled>
+                            <label class="form-check-label text-muted">
+                                Encriptar backups (Próximamente)
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Notificaciones</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" disabled>
+                            <label class="form-check-label text-muted">
+                                Email al completar backup (Próximamente)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function previewCredentials() {
+    const fileInput = document.getElementById('credentials_file');
+    const preview = document.getElementById('credentials_preview');
+    const textArea = document.getElementById('credentials_text');
+    const submitBtn = document.getElementById('submit_btn');
+    
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const credentials = JSON.parse(e.target.result);
+                textArea.value = JSON.stringify(credentials, null, 2);
+                preview.style.display = 'block';
+                submitBtn.disabled = false;
+                
+                // Validar que tenga la estructura correcta
+                if (!credentials.installed && !credentials.web) {
+                    throw new Error('Formato de credenciales inválido');
+                }
+            } catch (error) {
+                alert('Error: El archivo no es un JSON válido de credenciales de Google.');
+                fileInput.value = '';
+                preview.style.display = 'none';
+                submitBtn.disabled = true;
+            }
+        };
+        
+        reader.readAsText(file);
+    } else {
+        preview.style.display = 'none';
+        submitBtn.disabled = true;
+    }
+}
+
+function resetGoogleDrive() {
+    if (confirm('¿Estás seguro de que quieres reconfigurar Google Drive? Esto eliminará las credenciales actuales.')) {
+        fetch('{{ url_for("backups.reset_google_drive") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        }).then(response => {
+            if (response.ok) {
+                location.reload();
+            } else {
+                alert('Error al resetear la configuración');
+            }
+        });
+    }
+}
+
+function testDriveConnection() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Probando...';
+    btn.disabled = true;
+    
+    fetch('{{ url_for("backups.test_google_drive") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('✅ Conexión exitosa\n📁 Carpeta de backups accesible\n🔑 Credenciales válidas');
+        } else {
+            alert('❌ Error de conexión: ' + data.error);
+        }
+    }).catch(error => {
+        alert('❌ Error probando conexión: ' + error);
+    }).finally(() => {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

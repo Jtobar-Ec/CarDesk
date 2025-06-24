@@ -1,0 +1,675 @@
+{% extends "base.html" %}
+
+{% block title %}Gestión de Backups{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title">
+                        <i class="fas fa-database"></i> Gestión de Backups
+                    </h3>
+                    <div class="btn-group">
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBackupModal">
+                            <i class="fas fa-plus"></i> Crear Backup
+                        </button>
+                        <a href="{{ url_for('backups.config') }}" class="btn btn-info">
+                            <i class="fas fa-cog"></i> Configuración
+                        </a>
+                        <button type="button" class="btn btn-warning" onclick="cleanupBackups()">
+                            <i class="fas fa-broom"></i> Limpiar Antiguos
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Configuración inicial de directorio -->
+                    {% if needs_setup %}
+                    <div class="alert alert-primary alert-dismissible fade show" id="initialSetupAlert">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-cog"></i> Configuración Inicial
+                        </h5>
+                        <p>Es la primera vez que usa el sistema de backups. ¿Desea configurar un directorio personalizado para guardar los backups locales?</p>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="runInitialSetup()">
+                                <i class="fas fa-folder-open"></i> Configurar Directorio
+                            </button>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="useDefaultDirectory()">
+                                <i class="fas fa-check"></i> Usar Directorio por Defecto
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Configuración actual de directorio -->
+                    {% if config and config.custom_directory %}
+                    <div class="alert alert-info">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    <i class="fas fa-folder"></i> Directorio de Backups Locales
+                                </h6>
+                                <small class="text-muted">{{ config.custom_directory }}</small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="changeLocalDirectory()">
+                                <i class="fas fa-edit"></i> Cambiar
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Estado del scheduler y próximos backups -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card border-{% if next_backups.scheduler_running %}success{% else %}warning{% endif %}">
+                                <div class="card-body text-center">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-robot"></i> Scheduler Automático
+                                    </h5>
+                                    <p class="card-text">
+                                        {% if next_backups.scheduler_running %}
+                                            <span class="badge bg-success fs-6">Activo</span>
+                                        {% else %}
+                                            <span class="badge bg-warning fs-6">Inactivo</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if next_backups.scheduler_running %}
+                                        <form action="{{ url_for('backups.stop_scheduler') }}" method="POST" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-warning">
+                                                <i class="fas fa-stop"></i> Detener
+                                            </button>
+                                        </form>
+                                    {% else %}
+                                        <form action="{{ url_for('backups.start_scheduler') }}" method="POST" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-success">
+                                                <i class="fas fa-play"></i> Iniciar
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-info">
+                                <div class="card-body">
+                                    <h6 class="card-title">
+                                        <i class="fas fa-calendar-alt"></i> Próximos Backups
+                                    </h6>
+                                    <small class="text-muted">
+                                        <i class="fas fa-calendar-week"></i> <strong>Semanal:</strong>
+                                        {{ next_backups.next_weekly[:16].replace('T', ' ') if next_backups.next_weekly else 'No programado' }}
+                                    </small><br>
+                                    <small class="text-muted">
+                                        <i class="fas fa-cloud"></i> <strong>Mensual:</strong>
+                                        {{ next_backups.next_monthly[:16].replace('T', ' ') if next_backups.next_monthly else 'No programado' }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Estado de Google Drive -->
+                    <div class="alert {% if drive_configured %}alert-success{% else %}alert-warning{% endif %}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1">
+                                    <i class="fab fa-google-drive"></i> Google Drive
+                                    {% if drive_configured %}
+                                        <span class="badge bg-success">Configurado</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">No Configurado</span>
+                                    {% endif %}
+                                </h6>
+                                <small>
+                                    {% if drive_configured %}
+                                        Los backups mensuales se suben automáticamente a Google Drive
+                                    {% else %}
+                                        Configure Google Drive para backups automáticos en la nube
+                                    {% endif %}
+                                </small>
+                            </div>
+                            {% if not drive_configured %}
+                                <a href="{{ url_for('backups.config') }}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-cog"></i> Configurar
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Información de backups automáticos -->
+                    <div class="alert alert-info">
+                        <h5><i class="fas fa-info-circle"></i> Política de Backups Automáticos</h5>
+                        <ul class="mb-0">
+                            <li><strong>Backups Semanales:</strong> Se crean automáticamente cada domingo a las 2:00 AM en almacenamiento local</li>
+                            <li><strong>Backups Mensuales:</strong> Se crean el primer domingo de cada mes a las 3:00 AM y se suben a Google Drive</li>
+                            <li><strong>Retención:</strong> Backups locales se mantienen 30 días, backups en la nube 6 meses</li>
+                        </ul>
+                    </div>
+
+                    <!-- Acciones rápidas -->
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <div class="btn-group" role="group">
+                                <form action="{{ url_for('backups.force_backup') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="backup_type" value="weekly">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm">
+                                        <i class="fas fa-calendar-week"></i> Forzar Backup Semanal
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('backups.force_backup') }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="backup_type" value="monthly">
+                                    <button type="submit" class="btn btn-outline-info btn-sm">
+                                        <i class="fas fa-cloud"></i> Forzar Backup Mensual
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filtros -->
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <select class="form-select" id="filterType" onchange="filterBackups()">
+                                <option value="all">Todos los backups</option>
+                                <option value="local">Solo locales</option>
+                                <option value="cloud">Solo en la nube</option>
+                            </select>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="searchBackup" placeholder="Buscar backup..." onkeyup="filterBackups()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista de backups -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Nombre</th>
+                                    <th>Tipo</th>
+                                    <th>Fecha de Creación</th>
+                                    <th>Tamaño</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backupsTable">
+                                {% for backup in backups %}
+                                <tr data-type="{{ backup.type }}" data-name="{{ backup.name.lower() }}">
+                                    <td>
+                                        <i class="fas fa-file-archive text-primary"></i>
+                                        {{ backup.name }}
+                                    </td>
+                                    <td>
+                                        {% if backup.type == 'local' %}
+                                            <span class="badge bg-success">Local</span>
+                                        {% else %}
+                                            <span class="badge bg-info">Nube</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ backup.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                    <td>{{ backup.size_mb }} MB</td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            <a href="{{ url_for('backups.download_backup', backup_name=backup.name) }}" 
+                                               class="btn btn-outline-primary" title="Descargar">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-outline-success" 
+                                                    onclick="restoreBackup('{{ backup.path }}')" title="Restaurar">
+                                                <i class="fas fa-undo"></i>
+                                            </button>
+                                            <button type="button" class="btn btn-outline-danger" 
+                                                    onclick="deleteBackup('{{ backup.path }}', '{{ backup.name }}')" title="Eliminar">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% if not backups %}
+                        <div class="text-center py-4">
+                            <i class="fas fa-database fa-3x text-muted mb-3"></i>
+                            <p class="text-muted">No hay backups disponibles</p>
+                            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBackupModal">
+                                Crear primer backup
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear backup -->
+<div class="modal fade" id="createBackupModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Crear Nuevo Backup</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('backups.create_backup') }}" method="POST" id="createBackupForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="backup_type" class="form-label">Tipo de Backup</label>
+                        <select class="form-select" id="backup_type" name="backup_type" required onchange="toggleCustomDirectory()">
+                            <option value="local">Local (Recomendado para backups frecuentes)</option>
+                            <option value="cloud">Nube (Para backups importantes)</option>
+                        </select>
+                        <div class="form-text">
+                            Los backups locales se almacenan en el servidor, los de nube se preparan para Google Drive.
+                        </div>
+                    </div>
+                    
+                    <!-- Configuración de directorio personalizado para backups locales -->
+                    <div id="customDirectorySection" class="mb-3" style="display: none;">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="useCustomDirectory">
+                            <label class="form-check-label" for="useCustomDirectory">
+                                Usar directorio personalizado
+                            </label>
+                        </div>
+                        <div id="directorySelector" class="mt-2" style="display: none;">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="customDirectoryPath"
+                                       placeholder="Seleccionar directorio..." readonly>
+                                <button type="button" class="btn btn-outline-secondary" id="selectDirectoryBtn">
+                                    <i class="fas fa-folder-open"></i> Seleccionar
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">
+                                Los futuros backups automáticos se guardarán en este directorio.
+                            </small>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle"></i> Información del Backup</h6>
+                        <p class="mb-0">El backup incluirá:</p>
+                        <ul class="mb-0">
+                            <li>Registros de personal</li>
+                            <li>Inventario de artículos</li>
+                            <li>Catálogo de instrumentos</li>
+                            <li>Información de proveedores</li>
+                            <li>Historial de movimientos</li>
+                            <li>Asignaciones y consumos</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="createBackupBtn">
+                        <i class="fas fa-database"></i> Crear Backup
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación para restaurar -->
+<div class="modal fade" id="restoreModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirmar Restauración
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>¡ATENCIÓN!</strong> Esta acción reemplazará todos los datos actuales con los del backup seleccionado.
+                </div>
+                <p>¿Está seguro de que desea restaurar el backup <strong id="restoreBackupName"></strong>?</p>
+                <p class="text-muted">Se creará automáticamente un backup de seguridad antes de proceder.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form id="restoreForm" action="{{ url_for('backups.restore_backup') }}" method="POST" style="display: inline;">
+                    <input type="hidden" id="restoreBackupPath" name="backup_path">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-undo"></i> Restaurar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Variables globales para directorio personalizado
+let customDirectorySelected = false;
+let selectedDirectory = '';
+
+function filterBackups() {
+    const typeFilter = document.getElementById('filterType').value;
+    const searchFilter = document.getElementById('searchBackup').value.toLowerCase();
+    const rows = document.querySelectorAll('#backupsTable tr');
+    
+    rows.forEach(row => {
+        const type = row.getAttribute('data-type');
+        const name = row.getAttribute('data-name');
+        
+        const typeMatch = typeFilter === 'all' || type === typeFilter;
+        const nameMatch = name.includes(searchFilter);
+        
+        row.style.display = typeMatch && nameMatch ? '' : 'none';
+    });
+}
+
+function toggleCustomDirectory() {
+    const backupType = document.getElementById('backup_type').value;
+    const customSection = document.getElementById('customDirectorySection');
+    
+    if (backupType === 'local') {
+        customSection.style.display = 'block';
+    } else {
+        customSection.style.display = 'none';
+        // Reset custom directory settings
+        document.getElementById('useCustomDirectory').checked = false;
+        document.getElementById('directorySelector').style.display = 'none';
+        customDirectorySelected = false;
+        selectedDirectory = '';
+    }
+}
+
+async function selectCustomDirectory() {
+    try {
+        const response = await fetch('{{ url_for("backups.select_directory") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            selectedDirectory = result.directory;
+            document.getElementById('customDirectoryPath').value = selectedDirectory;
+            customDirectorySelected = true;
+            
+            // Mostrar mensaje de éxito
+            showAlert('Directorio seleccionado correctamente: ' + selectedDirectory, 'success');
+        } else {
+            showAlert('Error: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        showAlert('Error al seleccionar directorio: ' + error.message, 'danger');
+    }
+}
+
+function showAlert(message, type) {
+    // Crear alerta temporal
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Insertar al inicio del modal body
+    const modalBody = document.querySelector('#createBackupModal .modal-body');
+    modalBody.insertBefore(alertDiv, modalBody.firstChild);
+    
+    // Auto-remover después de 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle para mostrar/ocultar selector de directorio
+    document.getElementById('useCustomDirectory').addEventListener('change', function() {
+        const directorySelector = document.getElementById('directorySelector');
+        if (this.checked) {
+            directorySelector.style.display = 'block';
+        } else {
+            directorySelector.style.display = 'none';
+            customDirectorySelected = false;
+            selectedDirectory = '';
+            document.getElementById('customDirectoryPath').value = '';
+        }
+    });
+    
+    // Botón para seleccionar directorio
+    document.getElementById('selectDirectoryBtn').addEventListener('click', selectCustomDirectory);
+    
+    // Modificar el envío del formulario para incluir directorio personalizado
+    document.getElementById('createBackupForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const backupType = document.getElementById('backup_type').value;
+        const useCustomDir = document.getElementById('useCustomDirectory').checked;
+        
+        // Preparar datos para envío
+        const formData = {
+            backup_type: backupType
+        };
+        
+        // Si es backup local y se usa directorio personalizado
+        if (backupType === 'local' && useCustomDir && customDirectorySelected) {
+            formData.custom_directory = selectedDirectory;
+        }
+        
+        try {
+            // Deshabilitar botón durante el proceso
+            const submitBtn = document.getElementById('createBackupBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creando...';
+            
+            const response = await fetch('{{ url_for("backups.api_create_backup") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Backup creado exitosamente: ' + result.backup_name, 'success');
+                
+                // Cerrar modal después de 2 segundos y recargar página
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('createBackupModal')).hide();
+                    location.reload();
+                }, 2000);
+            } else {
+                showAlert('Error: ' + result.error, 'danger');
+            }
+        } catch (error) {
+            showAlert('Error al crear backup: ' + error.message, 'danger');
+        } finally {
+            // Rehabilitar botón
+            const submitBtn = document.getElementById('createBackupBtn');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+        }
+    });
+    
+    // Cargar configuración actual al abrir el modal
+    document.getElementById('createBackupModal').addEventListener('show.bs.modal', async function() {
+        try {
+            const response = await fetch('{{ url_for("backups.get_directory_config") }}');
+            const result = await response.json();
+            
+            if (result.success && result.custom_directory) {
+                selectedDirectory = result.custom_directory;
+                document.getElementById('customDirectoryPath').value = selectedDirectory;
+                customDirectorySelected = true;
+                
+                if (result.use_custom_directory) {
+                    document.getElementById('useCustomDirectory').checked = true;
+                    document.getElementById('directorySelector').style.display = 'block';
+                }
+            }
+        } catch (error) {
+            console.log('No se pudo cargar la configuración de directorio:', error);
+        }
+    });
+});
+
+function restoreBackup(backupPath) {
+    const backupName = backupPath.split('/').pop().replace('.zip', '');
+    document.getElementById('restoreBackupName').textContent = backupName;
+    document.getElementById('restoreBackupPath').value = backupPath;
+    new bootstrap.Modal(document.getElementById('restoreModal')).show();
+}
+
+function deleteBackup(backupPath, backupName) {
+    if (confirm(`¿Está seguro de que desea eliminar el backup "${backupName}"?`)) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("backups.delete_backup") }}';
+        
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'backup_path';
+        input.value = backupPath;
+        
+        form.appendChild(input);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function cleanupBackups() {
+    if (confirm('¿Desea limpiar los backups antiguos según la política de retención?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ url_for("backups.cleanup_backups") }}';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Funciones para configuración inicial
+async function runInitialSetup() {
+    try {
+        const response = await fetch('{{ url_for("backups.initial_setup") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showGlobalAlert('Directorio configurado correctamente: ' + result.directory, 'success');
+            document.getElementById('initialSetupAlert').style.display = 'none';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showGlobalAlert('Error: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        showGlobalAlert('Error en configuración inicial: ' + error.message, 'danger');
+    }
+}
+
+async function useDefaultDirectory() {
+    try {
+        const response = await fetch('{{ url_for("backups.config_directory") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                directory: '{{ config.custom_directory or "backups/local" }}'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showGlobalAlert('Configuración guardada. Usando directorio por defecto.', 'success');
+            document.getElementById('initialSetupAlert').style.display = 'none';
+            setTimeout(() => location.reload(), 2000);
+        } else {
+            showGlobalAlert('Error: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        showGlobalAlert('Error al guardar configuración: ' + error.message, 'danger');
+    }
+}
+
+async function changeLocalDirectory() {
+    try {
+        const response = await fetch('{{ url_for("backups.select_directory") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Configurar el nuevo directorio
+            const configResponse = await fetch('{{ url_for("backups.config_directory") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    directory: result.directory
+                })
+            });
+            
+            const configResult = await configResponse.json();
+            
+            if (configResult.success) {
+                showGlobalAlert('Directorio cambiado correctamente: ' + result.directory, 'success');
+                setTimeout(() => location.reload(), 2000);
+            } else {
+                showGlobalAlert('Error al configurar directorio: ' + configResult.error, 'danger');
+            }
+        } else {
+            showGlobalAlert('Error: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        showGlobalAlert('Error al cambiar directorio: ' + error.message, 'danger');
+    }
+}
+
+function showGlobalAlert(message, type) {
+    // Crear alerta temporal en la parte superior de la página
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-remover después de 5 segundos
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
+
+// Auto-refresh cada 30 segundos
+setInterval(() => {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}
