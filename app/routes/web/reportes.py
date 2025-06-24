@@ -4,7 +4,7 @@ from datetime import datetime, date
 from sqlalchemy import func, extract, and_
 from app.database.models import (
     MovimientoDetalle, Item, Articulo, Instrumento,
-    Proveedor, Persona, Consumo, Entrada
+    Proveedor, Persona, Consumo, Entrada, Usuario
 )
 from app.database import db
 import io

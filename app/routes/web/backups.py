@@ -5,11 +5,11 @@ from app.services.backup_scheduler import backup_scheduler
 from datetime import datetime
 import os
 
-backups_bp = Blueprint('backups', __name__, url_prefix='/backups')
+bp = Blueprint('backups', __name__)
 backup_service = BackupService()
 drive_service = GoogleDriveService()
 
-@backups_bp.route('/')
+@bp.route('/')
 def index():
     """Página principal de backups"""
     # Verificar si necesita configuración inicial
@@ -27,7 +27,7 @@ def index():
                          needs_setup=needs_setup,
                          config=config)
 
-@backups_bp.route('/create', methods=['POST'])
+@bp.route('/create', methods=['POST'])
 def create_backup():
     """Crear un nuevo backup"""
     backup_type = request.form.get('backup_type', 'local')
@@ -41,7 +41,7 @@ def create_backup():
     
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/api/create', methods=['POST'])
+@bp.route('/api/create', methods=['POST'])
 def api_create_backup():
     """API para crear backup"""
     try:
@@ -66,7 +66,7 @@ def api_create_backup():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@backups_bp.route('/api/select-directory', methods=['POST'])
+@bp.route('/api/select-directory', methods=['POST'])
 def select_directory():
     """Abrir diálogo para seleccionar directorio personalizado"""
     try:
@@ -110,7 +110,7 @@ def select_directory():
             'error': f'Error al seleccionar directorio: {str(e)}'
         }), 500
 
-@backups_bp.route('/api/config/directory', methods=['GET', 'POST'])
+@bp.route('/api/config/directory', methods=['GET', 'POST'])
 def get_directory_config():
     """Configurar directorio personalizado"""
     if request.method == 'POST':
@@ -146,7 +146,7 @@ def get_directory_config():
             'error': f'Error obteniendo configuración: {str(e)}'
         }), 500
 
-@backups_bp.route('/api/config/directory', methods=['POST'])
+@bp.route('/api/config/directory', methods=['POST'])
 def config_directory():
     """Configurar directorio personalizado (POST)"""
     try:
@@ -167,7 +167,7 @@ def config_directory():
             'error': f'Error configurando directorio: {str(e)}'
         }), 500
 
-@backups_bp.route('/api/setup/initial', methods=['POST'])
+@bp.route('/api/setup/initial', methods=['POST'])
 def initial_setup():
     """Configuración inicial de directorio"""
     try:
@@ -179,7 +179,7 @@ def initial_setup():
             'error': f'Error en configuración inicial: {str(e)}'
         }), 500
 
-@backups_bp.route('/api/setup/check', methods=['GET'])
+@bp.route('/api/setup/check', methods=['GET'])
 def check_setup():
     """Verificar si necesita configuración inicial"""
     try:
@@ -196,14 +196,14 @@ def check_setup():
             'error': str(e)
         }), 500
 
-@backups_bp.route('/list')
+@bp.route('/list')
 def list_backups():
     """API para listar backups"""
     backup_type = request.args.get('type', 'all')
     backups = backup_service.list_backups(backup_type)
     return jsonify(backups)
 
-@backups_bp.route('/download/<path:backup_name>')
+@bp.route('/download/<path:backup_name>')
 def download_backup(backup_name):
     """Descargar un backup"""
     try:
@@ -226,7 +226,7 @@ def download_backup(backup_name):
         flash(f'Error al descargar backup: {str(e)}', 'error')
         return redirect(url_for('backups.index'))
 
-@backups_bp.route('/restore', methods=['POST'])
+@bp.route('/restore', methods=['POST'])
 def restore_backup():
     """Restaurar un backup"""
     backup_path = request.form.get('backup_path')
@@ -244,7 +244,7 @@ def restore_backup():
     
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/config')
+@bp.route('/config')
 def config():
     """Página de configuración de backups"""
     drive_configured = drive_service.is_configured()
@@ -253,7 +253,7 @@ def config():
                          drive_configured=drive_configured,
                          setup_instructions=setup_instructions)
 
-@backups_bp.route('/config/google-drive', methods=['POST'])
+@bp.route('/config/google-drive', methods=['POST'])
 def setup_google_drive():
     """Configurar credenciales de Google Drive"""
     try:
@@ -283,21 +283,21 @@ def setup_google_drive():
     
     return redirect(url_for('backups.config'))
 
-@backups_bp.route('/scheduler/start', methods=['POST'])
+@bp.route('/scheduler/start', methods=['POST'])
 def start_scheduler():
     """Iniciar scheduler de backups automáticos"""
     backup_scheduler.start()
     flash('Scheduler de backups automáticos iniciado', 'success')
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/scheduler/stop', methods=['POST'])
+@bp.route('/scheduler/stop', methods=['POST'])
 def stop_scheduler():
     """Detener scheduler de backups automáticos"""
     backup_scheduler.stop()
     flash('Scheduler de backups automáticos detenido', 'warning')
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/force-backup', methods=['POST'])
+@bp.route('/force-backup', methods=['POST'])
 def force_backup():
     """Forzar ejecución de backup programado"""
     backup_type = request.form.get('backup_type', 'local')
@@ -312,7 +312,7 @@ def force_backup():
     
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/delete', methods=['POST'])
+@bp.route('/delete', methods=['POST'])
 def delete_backup():
     """Eliminar un backup"""
     backup_path = request.form.get('backup_path')
@@ -328,7 +328,7 @@ def delete_backup():
     
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/cleanup', methods=['POST'])
+@bp.route('/cleanup', methods=['POST'])
 def cleanup_backups():
     """Limpiar backups antiguos"""
     try:
@@ -339,7 +339,7 @@ def cleanup_backups():
     
     return redirect(url_for('backups.index'))
 
-@backups_bp.route('/config/google-drive/reset', methods=['POST'])
+@bp.route('/config/google-drive/reset', methods=['POST'])
 def reset_google_drive():
     """Resetear configuración de Google Drive"""
     try:
@@ -351,7 +351,7 @@ def reset_google_drive():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@backups_bp.route('/config/google-drive/test', methods=['POST'])
+@bp.route('/config/google-drive/test', methods=['POST'])
 def test_google_drive():
     """Probar conexión con Google Drive"""
     try:
@@ -360,7 +360,7 @@ def test_google_drive():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@backups_bp.route('/config/reset', methods=['POST'])
+@bp.route('/config/reset', methods=['POST'])
 def reset_all_config():
     """Resetear toda la configuración de backups"""
     try:
@@ -384,7 +384,7 @@ def reset_all_config():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@backups_bp.route('/clear-cache', methods=['POST'])
+@bp.route('/clear-cache', methods=['POST'])
 def clear_backup_cache():
     """Limpiar cache de backups"""
     try:

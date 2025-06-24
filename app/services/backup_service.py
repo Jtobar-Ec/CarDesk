@@ -2,17 +2,19 @@ import os
 import json
 import sqlite3
 import zipfile
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
-from app import db
-from app.database.models import Persona, Item, Articulo, Instrumento, Proveedor, MovimientoDetalle, Consumo
+from app.database import db
+from app.database.models import Persona, Item, Articulo, Instrumento, Proveedor, MovimientoDetalle, Consumo, Entrada, Usuario
 from .google_drive_service import GoogleDriveService
 
 class BackupService:
     def __init__(self):
         # Configuración de directorios
         self.config_file = Path("backup_config.json")
+        self.logger = logging.getLogger(__name__)
         self.load_config()
         self.drive_service = GoogleDriveService()
     

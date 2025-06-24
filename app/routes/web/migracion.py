@@ -9,7 +9,7 @@ import tempfile
 import io
 from werkzeug.utils import secure_filename
 from app.database import db
-from app.database.models import MovimientoDetalle, Item, Articulo, Instrumento, Proveedor, Persona, Consumo, Entrada
+from app.database.models import MovimientoDetalle, Item, Articulo, Instrumento, Proveedor, Persona, Consumo, Entrada, Usuario
 from sqlalchemy import extract, text
 
 bp = Blueprint('migracion', __name__)
