@@ -26,7 +26,7 @@ def create_app():
         return Usuario.query.get(int(user_id))
     
     # Importar rutas después de inicializar la base de datos
-    from .routes.web import dashboard, instrumentos, articulos, proveedores, movimientos, auth, personal, backups
+    from .routes.web import dashboard, instrumentos, articulos, proveedores, movimientos, auth, reportes, migracion, personal, backups
     
     # Ruta de prueba
     @app.route('/test')
@@ -40,15 +40,5 @@ def create_app():
     app.register_blueprint(articulos.bp, url_prefix='/articulos')
     app.register_blueprint(proveedores.bp, url_prefix='/proveedores')
     app.register_blueprint(movimientos.bp, url_prefix='/movimientos')
-    app.register_blueprint(personal.bp, url_prefix='/personal')
-    app.register_blueprint(backups.backups_bp, url_prefix='/backups')
-    
-    # Inicializar scheduler de backups automáticos
-    with app.app_context():
-        try:
-            from app.services.backup_scheduler import backup_scheduler
-            backup_scheduler.start()
-        except Exception as e:
-            print(f"Error iniciando scheduler de backups: {e}")
         
     return app

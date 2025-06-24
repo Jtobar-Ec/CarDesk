@@ -3,136 +3,207 @@
 {% block title %}Dashboard - Conservatorio Kardex{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="mb-4">
-            <i class="fas fa-tachometer-alt"></i> Dashboard del Sistema
-        </h1>
-    </div>
-</div>
-
-<!-- Tarjetas de estadísticas -->
+<!-- Header Section -->
 <div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card bg-primary text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="mb-2 fw-bold">
+                    <i class="fas fa-tachometer-alt text-primary"></i> 
+                    Dashboard del Sistema
+                </h1>
+                <p class="text-muted mb-0">Gestión integral del inventario del conservatorio</p>
+            </div>
+            <div class="text-end">
+                <small class="text-muted">Última actualización</small>
+                <br>
+                <strong id="current-time"></strong>
+            </div>
+        </div>
+        <hr class="mt-3">
+    </div>
+</div>
+
+<!-- Tarjetas de estadísticas con animaciones -->
+<div class="row mb-5 g-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="card bg-primary text-white shadow-lg border-0 h-100 card-hover">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4>{{ estadisticas.total_instrumentos }}</h4>
-                        <p class="mb-0">Instrumentos</p>
+                        <div class="d-flex align-items-center mb-2">
+                            <h2 class="mb-0 fw-bold counter" data-target="{{ estadisticas.total_instrumentos }}">0</h2>
+                            <small class="ms-2 opacity-75">unidades</small>
+                        </div>
+                        <h6 class="mb-0 text-uppercase letter-spacing">Instrumentos</h6>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-guitar fa-2x"></i>
+                    <div class="text-end">
+                        <div class="bg-white bg-opacity-25 rounded-circle p-3 d-inline-flex">
+                            <i class="fas fa-guitar fa-2x"></i>
+                        </div>
                     </div>
                 </div>
+                <div class="progress mt-3" style="height: 4px;">
+                    <div class="progress-bar bg-white bg-opacity-50" role="progressbar" style="width: 75%"></div>
+                </div>
             </div>
-            <div class="card-footer">
-                <a href="{{ url_for('instrumentos.listar_instrumentos') }}" class="text-white text-decoration-none">
-                    Ver todos <i class="fas fa-arrow-right"></i>
+            <div class="card-footer bg-white bg-opacity-10 border-0">
+                <a href="{{ url_for('instrumentos.listar_instrumentos') }}" class="text-white text-decoration-none d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">Ver todos los instrumentos</span>
+                    <i class="fas fa-arrow-right"></i>
                 </a>
             </div>
         </div>
     </div>
     
-    <div class="col-md-3">
-        <div class="card bg-success text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+    <div class="col-xl-3 col-md-6">
+        <div class="card bg-success text-white shadow-lg border-0 h-100 card-hover">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4>{{ estadisticas.total_articulos }}</h4>
-                        <p class="mb-0">Artículos</p>
+                        <div class="d-flex align-items-center mb-2">
+                            <h2 class="mb-0 fw-bold counter" data-target="{{ estadisticas.total_articulos }}">0</h2>
+                            <small class="ms-2 opacity-75">items</small>
+                        </div>
+                        <h6 class="mb-0 text-uppercase letter-spacing">Artículos</h6>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-boxes fa-2x"></i>
+                    <div class="text-end">
+                        <div class="bg-white bg-opacity-25 rounded-circle p-3 d-inline-flex">
+                            <i class="fas fa-boxes fa-2x"></i>
+                        </div>
                     </div>
                 </div>
+                <div class="progress mt-3" style="height: 4px;">
+                    <div class="progress-bar bg-white bg-opacity-50" role="progressbar" style="width: 85%"></div>
+                </div>
             </div>
-            <div class="card-footer">
-                <a href="{{ url_for('articulos.listar_articulos') }}" class="text-white text-decoration-none">
-                    Ver todos <i class="fas fa-arrow-right"></i>
+            <div class="card-footer bg-white bg-opacity-10 border-0">
+                <a href="{{ url_for('articulos.listar_articulos') }}" class="text-white text-decoration-none d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">Ver todos los artículos</span>
+                    <i class="fas fa-arrow-right"></i>
                 </a>
             </div>
         </div>
     </div>
     
-    <div class="col-md-3">
-        <div class="card bg-info text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+    <div class="col-xl-3 col-md-6">
+        <div class="card bg-info text-white shadow-lg border-0 h-100 card-hover">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4>{{ estadisticas.total_proveedores }}</h4>
-                        <p class="mb-0">Proveedores</p>
+                        <div class="d-flex align-items-center mb-2">
+                            <h2 class="mb-0 fw-bold counter" data-target="{{ estadisticas.total_proveedores }}">0</h2>
+                            <small class="ms-2 opacity-75">activos</small>
+                        </div>
+                        <h6 class="mb-0 text-uppercase letter-spacing">Proveedores</h6>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-truck fa-2x"></i>
+                    <div class="text-end">
+                        <div class="bg-white bg-opacity-25 rounded-circle p-3 d-inline-flex">
+                            <i class="fas fa-truck fa-2x"></i>
+                        </div>
                     </div>
                 </div>
+                <div class="progress mt-3" style="height: 4px;">
+                    <div class="progress-bar bg-white bg-opacity-50" role="progressbar" style="width: 60%"></div>
+                </div>
             </div>
-            <div class="card-footer">
-                <a href="{{ url_for('proveedores.listar_proveedores') }}" class="text-white text-decoration-none">
-                    Ver todos <i class="fas fa-arrow-right"></i>
+            <div class="card-footer bg-white bg-opacity-10 border-0">
+                <a href="{{ url_for('proveedores.listar_proveedores') }}" class="text-white text-decoration-none d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">Ver todos los proveedores</span>
+                    <i class="fas fa-arrow-right"></i>
                 </a>
             </div>
         </div>
     </div>
     
-    <div class="col-md-3">
-        <div class="card bg-warning text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between">
+    <div class="col-xl-3 col-md-6">
+        <div class="card bg-warning text-white shadow-lg border-0 h-100 card-hover">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h4>{{ estadisticas.articulos_stock_bajo }}</h4>
-                        <p class="mb-0">Stock Bajo</p>
+                        <div class="d-flex align-items-center mb-2">
+                            <h2 class="mb-0 fw-bold counter" data-target="{{ estadisticas.articulos_stock_bajo }}">0</h2>
+                            <small class="ms-2 opacity-75">alertas</small>
+                        </div>
+                        <h6 class="mb-0 text-uppercase letter-spacing">Stock Bajo</h6>
                     </div>
-                    <div class="align-self-center">
-                        <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <div class="text-end">
+                        <div class="bg-white bg-opacity-25 rounded-circle p-3 d-inline-flex">
+                            <i class="fas fa-exclamation-triangle fa-2x"></i>
+                        </div>
                     </div>
                 </div>
+                <div class="progress mt-3" style="height: 4px;">
+                    <div class="progress-bar bg-white bg-opacity-50" role="progressbar" style="width: 25%"></div>
+                </div>
             </div>
-            <div class="card-footer">
-                <a href="{{ url_for('articulos.stock_bajo') }}" class="text-white text-decoration-none">
-                    Ver alertas <i class="fas fa-arrow-right"></i>
+            <div class="card-footer bg-white bg-opacity-10 border-0">
+                <a href="{{ url_for('articulos.stock_bajo') }}" class="text-white text-decoration-none d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold">Ver todas las alertas</span>
+                    <i class="fas fa-arrow-right"></i>
                 </a>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Alertas de stock bajo -->
+<!-- Alertas de stock bajo mejoradas -->
 {% if alertas_stock %}
-<div class="row">
+<div class="row mb-5">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-warning text-white">
-                <h5 class="mb-0">
-                    <i class="fas fa-exclamation-triangle"></i> Alertas de Stock Bajo
-                </h5>
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-warning text-white py-3 border-0">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="fas fa-exclamation-triangle me-2"></i> 
+                        Alertas de Stock Bajo
+                    </h5>
+                    <span class="badge bg-white text-warning fw-bold">{{ alertas_stock|length }} alertas activas</span>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
                             <tr>
-                                <th>Código</th>
-                                <th>Artículo</th>
-                                <th>Stock Actual</th>
-                                <th>Stock Mínimo</th>
-                                <th>Acciones</th>
+                                <th class="border-0 fw-bold text-uppercase px-4 py-3">
+                                    <i class="fas fa-barcode me-2 text-muted"></i>Código
+                                </th>
+                                <th class="border-0 fw-bold text-uppercase py-3">
+                                    <i class="fas fa-tag me-2 text-muted"></i>Artículo
+                                </th>
+                                <th class="border-0 fw-bold text-uppercase py-3 text-center">
+                                    <i class="fas fa-layer-group me-2 text-muted"></i>Stock Actual
+                                </th>
+                                <th class="border-0 fw-bold text-uppercase py-3 text-center">
+                                    <i class="fas fa-chart-line me-2 text-muted"></i>Stock Mínimo
+                                </th>
+                                <th class="border-0 fw-bold text-uppercase py-3 text-center">
+                                    <i class="fas fa-cogs me-2 text-muted"></i>Acciones
+                                </th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for articulo, item in alertas_stock %}
-                            <tr>
-                                <td>{{ item.i_codigo }}</td>
-                                <td>{{ item.i_nombre }}</td>
-                                <td>
-                                    <span class="badge bg-danger">{{ item.i_cantidad }}</span>
+                            <tr class="align-middle">
+                                <td class="px-4 py-3">
+                                    <code class="bg-light text-dark px-2 py-1 rounded">{{ item.i_codigo }}</code>
                                 </td>
-                                <td>{{ articulo.a_stockMin }}</td>
-                                <td>
+                                <td class="py-3">
+                                    <div class="fw-semibold text-dark">{{ item.i_nombre }}</div>
+                                </td>
+                                <td class="text-center py-3">
+                                    <span class="badge bg-danger fs-6 px-3 py-2">
+                                        <i class="fas fa-exclamation-circle me-1"></i>{{ item.i_cantidad }}
+                                    </span>
+                                </td>
+                                <td class="text-center py-3">
+                                    <span class="text-muted fw-semibold">{{ articulo.a_stockMin }}</span>
+                                </td>
+                                <td class="text-center py-3">
                                     <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}"
-                                       class="btn btn-sm btn-primary">
-                                        <i class="fas fa-eye"></i> Ver
+                                       class="btn btn-primary btn-sm px-3 py-2 shadow-sm">
+                                        <i class="fas fa-eye me-1"></i> Ver Detalle
                                     </a>
                                 </td>
                             </tr>
@@ -146,38 +217,169 @@
 </div>
 {% endif %}
 
-<!-- Acciones rápidas -->
-<div class="row mt-4">
+<!-- Acciones rápidas mejoradas -->
+<div class="row">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-bolt"></i> Acciones Rápidas
-                </h5>
+        <div class="card shadow-lg border-0">
+            <div class="card-header bg-white border-0 py-4">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 class="mb-1 fw-bold text-dark">
+                            <i class="fas fa-bolt text-primary me-2"></i> 
+                            Acciones Rápidas
+                        </h5>
+                        <p class="text-muted mb-0">Accede rápidamente a las funciones más utilizadas</p>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('articulos.nuevo_articulo') }}" class="btn btn-success btn-lg w-100">
-                            <i class="fas fa-plus"></i><br>
-                            Nuevo Artículo
-                        </a>
+            <div class="card-body py-4">
+                <div class="row g-4">
+                    <div class="col-lg-4 col-md-6">
+                        <div class="text-center">
+                            <a href="{{ url_for('articulos.nuevo_articulo') }}" 
+                               class="btn btn-success btn-lg w-100 py-4 shadow-sm btn-hover">
+                                <div class="mb-2">
+                                    <i class="fas fa-plus-circle fa-3x"></i>
+                                </div>
+                                <div class="fw-bold">Nuevo Artículo</div>
+                                <small class="text-white-50">Agregar artículo al inventario</small>
+                            </a>
+                        </div>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('proveedores.nuevo_proveedor') }}" class="btn btn-info btn-lg w-100">
-                            <i class="fas fa-plus"></i><br>
-                            Nuevo Proveedor
-                        </a>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="text-center">
+                            <a href="{{ url_for('proveedores.nuevo_proveedor') }}" 
+                               class="btn btn-info btn-lg w-100 py-4 shadow-sm btn-hover">
+                                <div class="mb-2">
+                                    <i class="fas fa-user-plus fa-3x"></i>
+                                </div>
+                                <div class="fw-bold">Nuevo Proveedor</div>
+                                <small class="text-white-50">Registrar nuevo proveedor</small>
+                            </a>
+                        </div>
                     </div>
-                    <div class="col-md-4 mb-3">
-                        <a href="{{ url_for('articulos.stock_bajo') }}" class="btn btn-warning btn-lg w-100">
-                            <i class="fas fa-search"></i><br>
-                            Revisar Stock
-                        </a>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="text-center">
+                            <a href="{{ url_for('articulos.stock_bajo') }}"
+                               class="btn btn-warning btn-lg w-100 py-4 shadow-sm btn-hover">
+                                <div class="mb-2">
+                                    <i class="fas fa-search-plus fa-3x"></i>
+                                </div>
+                                <div class="fw-bold">Revisar Stock</div>
+                                <small class="text-white-50">Monitorear niveles de inventario</small>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-6">
+                        <div class="text-center">
+                            <a href="{{ url_for('reportes.index') }}"
+                               class="btn btn-primary btn-lg w-100 py-4 shadow-sm btn-hover">
+                                <div class="mb-2">
+                                    <i class="fas fa-chart-bar fa-3x"></i>
+                                </div>
+                                <div class="fw-bold">Generar Reportes</div>
+                                <small class="text-white-50">Análisis y estadísticas detalladas</small>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="col-lg-4 col-md-12">
+                        <div class="text-center">
+                            <a href="{{ url_for('instrumentos.nuevo_instrumento') }}"
+                               class="btn btn-secondary btn-lg w-100 py-4 shadow-sm btn-hover">
+                                <div class="mb-2">
+                                    <i class="fas fa-plus-square fa-3x"></i>
+                                </div>
+                                <div class="fw-bold">Nuevo Instrumento</div>
+                                <small class="text-white-50">Registrar nuevo instrumento musical</small>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- CSS personalizado y JavaScript -->
+<style>
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
+}
+
+.btn-hover {
+    transition: all 0.3s ease;
+}
+
+.btn-hover:hover {
+    transform: translateY(-2px);
+}
+
+.letter-spacing {
+    letter-spacing: 1px;
+}
+
+.counter {
+    transition: all 0.3s ease;
+}
+
+@keyframes countUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count {
+    animation: countUp 0.8s ease-out;
+}
+</style>
+
+<script>
+// Actualizar hora actual
+function updateCurrentTime() {
+    const now = new Date();
+    const timeString = now.toLocaleString('es-ES', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    document.getElementById('current-time').textContent = timeString;
+}
+
+// Animación de contadores
+function animateCounters() {
+    const counters = document.querySelectorAll('.counter');
+    
+    counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-target'));
+        const duration = 2000; // 2 seconds
+        const increment = target / (duration / 16); // 60fps
+        let current = 0;
+        
+        const timer = setInterval(() => {
+            current += increment;
+            if (current >= target) {
+                current = target;
+                clearInterval(timer);
+            }
+            counter.textContent = Math.floor(current);
+            counter.classList.add('animate-count');
+        }, 16);
+    });
+}
+
+// Inicializar cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+    updateCurrentTime();
+    animateCounters();
+    
+    // Actualizar hora cada minuto
+    setInterval(updateCurrentTime, 60000);
+});
+</script>
 {% endblock %}
