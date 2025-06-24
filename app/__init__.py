@@ -26,7 +26,7 @@ def create_app():
         return Usuario.query.get(int(user_id))
     
     # Importar rutas después de inicializar la base de datos
-    from .routes.web import dashboard, instrumentos, articulos, proveedores, movimientos, auth, reportes
+    from .routes.web import dashboard, instrumentos, articulos, proveedores, movimientos, auth, reportes, migracion
     
     # Ruta de prueba
     @app.route('/test')
@@ -41,5 +41,6 @@ def create_app():
     app.register_blueprint(proveedores.bp, url_prefix='/proveedores')
     app.register_blueprint(movimientos.bp, url_prefix='/movimientos')
     app.register_blueprint(reportes.bp, url_prefix='/reportes')
+    app.register_blueprint(migracion.bp, url_prefix='/migracion')
         
     return app
