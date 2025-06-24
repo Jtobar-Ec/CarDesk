@@ -309,18 +309,52 @@ class BackupService:
         return data
 
     def list_backups(self, backup_type="all"):
-        """Lista todos los backups disponibles"""
+        """Lista backups disponibles filtrados por configuración actual"""
         backups = []
         
+        # Backups locales: solo del directorio configurado por el usuario
         if backup_type in ["all", "local"]:
-            for backup_file in self.local_backup_dir.glob("*.zip"):
-                backups.append(self._get_backup_info(backup_file, "local"))
+            if self.local_backup_dir.exists():
+                for backup_file in self.local_backup_dir.glob("*.zip"):
+                    backups.append(self._get_backup_info(backup_file, "local"))
         
+        # Backups cloud: solo los relacionados con la cuenta de Google Drive configurada
         if backup_type in ["all", "cloud"]:
-            for backup_file in self.cloud_backup_dir.glob("*.zip"):
-                backups.append(self._get_backup_info(backup_file, "cloud"))
+            # Obtener backups locales en directorio cloud
+            if self.cloud_backup_dir.exists():
+                for backup_file in self.cloud_backup_dir.glob("*.zip"):
+                    backups.append(self._get_backup_info(backup_file, "cloud"))
+            
+            # Agregar backups de Google Drive si está configurado
+            if self.drive_service.is_configured():
+                drive_backups = self._get_drive_backups()
+                backups.extend(drive_backups)
         
         return sorted(backups, key=lambda x: x["created_at"], reverse=True)
+    
+    def _get_drive_backups(self):
+        """Obtiene lista de backups desde Google Drive"""
+        try:
+            drive_records = self.drive_service.list_drive_backups()
+            drive_backups = []
+            
+            for record in drive_records:
+                # Solo incluir backups de la cuenta actual
+                if record.get('status') in ['uploaded', 'simulated']:
+                    drive_backups.append({
+                        "name": record['backup_name'],
+                        "path": f"drive://{record['drive_file_id']}",
+                        "type": "cloud_drive",
+                        "size": record['file_size'],
+                        "created_at": datetime.fromisoformat(record['uploaded_at'].replace('Z', '+00:00')),
+                        "size_mb": round(record['file_size'] / (1024 * 1024), 2),
+                        "drive_file_id": record['drive_file_id']
+                    })
+            
+            return drive_backups
+        except Exception as e:
+            self.logger.error(f"Error obteniendo backups de Drive: {e}")
+            return []
 
     def _get_backup_info(self, backup_path, backup_type):
         """Obtiene información de un backup"""
@@ -335,37 +369,136 @@ class BackupService:
         }
 
     def restore_backup(self, backup_path):
-        """Restaura un backup (multiplataforma)"""
+        """Restaura un backup (multiplataforma) con validaciones mejoradas"""
         try:
-            backup_path = Path(backup_path)
-            if not backup_path.exists():
-                return {"success": False, "error": "Archivo de backup no encontrado"}
+            # Manejar backups de Google Drive
+            if backup_path.startswith("drive://"):
+                return self._restore_from_drive(backup_path)
             
-            # Crear backup de seguridad antes de restaurar
-            current_backup = self.create_backup("restore_safety")
+            backup_path = Path(backup_path)
+            
+            # Si no existe, intentar encontrarlo en los directorios configurados
+            if not backup_path.exists():
+                found_path = self._find_backup_file(str(backup_path))
+                if not found_path:
+                    return {"success": False, "error": "Archivo de backup no encontrado"}
+                backup_path = found_path
+            
+            # Validar que es un archivo ZIP válido
+            if not zipfile.is_zipfile(backup_path):
+                return {"success": False, "error": "El archivo no es un backup válido"}
+            
+            # Validar contenido del backup antes de proceder
+            with zipfile.ZipFile(backup_path, 'r') as zipf:
+                files_in_backup = zipf.namelist()
+                if "database/conservatorio.db" not in files_in_backup:
+                    return {"success": False, "error": "El backup no contiene la base de datos"}
             
             # Crear directorio temporal multiplataforma
             temp_dir = Path("temp_restore")
             instance_dir = Path("instance")
             instance_dir.mkdir(exist_ok=True)
             
-            with zipfile.ZipFile(backup_path, 'r') as zipf:
-                # Restaurar base de datos
-                if "database/conservatorio.db" in zipf.namelist():
-                    zipf.extract("database/conservatorio.db", temp_dir)
-                    db_source = temp_dir / "database" / "conservatorio.db"
-                    db_target = instance_dir / "conservatorio.db"
-                    
-                    if db_source.exists():
-                        shutil.move(str(db_source), str(db_target))
-                    
-                    # Limpiar directorio temporal
-                    if temp_dir.exists():
-                        shutil.rmtree(temp_dir, ignore_errors=True)
+            # Limpiar directorio temporal si existe
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
             
-            return {"success": True, "safety_backup": current_backup}
+            # Crear backup de seguridad de la BD actual (más eficiente)
+            db_target = instance_dir / "conservatorio.db"
+            safety_backup_created = False
+            if db_target.exists():
+                try:
+                    backup_current = db_target.with_suffix('.db.backup')
+                    shutil.copy2(str(db_target), str(backup_current))
+                    safety_backup_created = True
+                except Exception as e:
+                    # Continuar sin backup de seguridad si falla
+                    print(f"Advertencia: No se pudo crear backup de seguridad: {e}")
+            
+            with zipfile.ZipFile(backup_path, 'r') as zipf:
+                # Extraer base de datos
+                zipf.extract("database/conservatorio.db", temp_dir)
+                db_source = temp_dir / "database" / "conservatorio.db"
+                
+                # Verificar que el archivo extraído existe y tiene contenido
+                if not db_source.exists() or db_source.stat().st_size == 0:
+                    return {"success": False, "error": "La base de datos en el backup está corrupta"}
+                
+                # Restaurar base de datos
+                shutil.move(str(db_source), str(db_target))
+                
+                # Limpiar directorio temporal
+                if temp_dir.exists():
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+            
+            return {
+                "success": True,
+                "safety_backup_created": safety_backup_created,
+                "message": "Backup restaurado exitosamente",
+                "restored_from": str(backup_path)
+            }
+            
+        except zipfile.BadZipFile:
+            return {"success": False, "error": "El archivo de backup está corrupto"}
+        except PermissionError:
+            return {"success": False, "error": "Sin permisos para acceder al archivo de backup"}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            return {"success": False, "error": f"Error durante la restauración: {str(e)}"}
+    
+    def _restore_from_drive(self, drive_path):
+        """Restaura un backup desde Google Drive"""
+        try:
+            drive_file_id = drive_path.replace("drive://", "")
+            
+            # Descargar desde Google Drive
+            temp_backup = Path("temp_drive_backup.zip")
+            download_result = self.drive_service.download_from_drive(drive_file_id, str(temp_backup))
+            
+            if not download_result.get('success'):
+                return {"success": False, "error": f"Error descargando desde Drive: {download_result.get('error')}"}
+            
+            # Restaurar el archivo descargado
+            result = self.restore_backup(str(temp_backup))
+            
+            # Limpiar archivo temporal
+            if temp_backup.exists():
+                temp_backup.unlink()
+            
+            return result
+            
+        except Exception as e:
+            return {"success": False, "error": f"Error restaurando desde Drive: {str(e)}"}
+    
+    def _find_backup_file(self, backup_path):
+        """Busca un archivo de backup en los directorios configurados"""
+        backup_path = Path(backup_path)
+        backup_name = backup_path.name
+        
+        # Buscar en directorio local configurado
+        local_file = self.local_backup_dir / backup_name
+        if local_file.exists():
+            return local_file
+        
+        # Buscar en directorio cloud
+        cloud_file = self.cloud_backup_dir / backup_name
+        if cloud_file.exists():
+            return cloud_file
+        
+        # Si solo se pasó el nombre, buscar archivos que contengan ese nombre
+        if not backup_name.endswith('.zip'):
+            backup_name += '.zip'
+            
+        # Buscar en directorio local
+        for backup_file in self.local_backup_dir.glob("*.zip"):
+            if backup_name in backup_file.name or backup_file.name == backup_name:
+                return backup_file
+        
+        # Buscar en directorio cloud
+        for backup_file in self.cloud_backup_dir.glob("*.zip"):
+            if backup_name in backup_file.name or backup_file.name == backup_name:
+                return backup_file
+        
+        return None
 
     def cleanup_old_backups(self):
         """Limpia backups antiguos según política de retención"""
