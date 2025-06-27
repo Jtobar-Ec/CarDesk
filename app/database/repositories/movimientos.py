@@ -43,10 +43,21 @@ class MovimientoRepository(BaseRepository):
         # Actualizar stock del item
         item = Item.query.get(item_id)
         if item:
+            # Calcular nuevo valor total ponderado
+            valor_total_anterior = Decimal(str(item.i_vTotal))
+            cantidad_anterior = item.i_cantidad
+            
+            # Actualizar cantidad
             item.i_cantidad += cantidad
-            item.i_vTotal += valor_total
+            
+            # Calcular nuevo valor unitario promedio ponderado
             if item.i_cantidad > 0:
-                item.i_vUnitario = item.i_vTotal / item.i_cantidad
+                nuevo_valor_total = valor_total_anterior + valor_total
+                item.i_vUnitario = nuevo_valor_total / item.i_cantidad
+                item.i_vTotal = nuevo_valor_total
+            else:
+                item.i_vUnitario = valor_unitario
+                item.i_vTotal = valor_total
         
         db.session.add(movimiento)
         db.session.commit()
@@ -75,13 +86,15 @@ class MovimientoRepository(BaseRepository):
         )
         
         # Actualizar stock del item
+        valor_total_salida = Decimal(str(item.i_vUnitario)) * Decimal(str(cantidad))
         item.i_cantidad -= cantidad
-        item.i_vTotal -= valor_total
+        
         if item.i_cantidad > 0:
-            item.i_vUnitario = item.i_vTotal / item.i_cantidad
+            item.i_vTotal = Decimal(str(item.i_vTotal)) - valor_total_salida
+            # Mantener el valor unitario actual (no recalcular en salidas)
         else:
-            item.i_vUnitario = 0
-            item.i_vTotal = 0
+            item.i_vUnitario = Decimal('0')
+            item.i_vTotal = Decimal('0')
         
         db.session.add(movimiento)
         db.session.commit()

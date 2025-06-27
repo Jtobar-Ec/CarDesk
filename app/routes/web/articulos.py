@@ -47,7 +47,7 @@ def nuevo_articulo():
             # Si se especificó un proveedor, registrar la entrada inicial
             if proveedor_id and cantidad > 0:
                 articulo_service.registrar_entrada(
-                    articulo.i_id, cantidad, valor_unitario, current_user.id,
+                    item.id, cantidad, valor_unitario, current_user.id,
                     proveedor_id=proveedor_id,
                     observaciones=f"Entrada inicial del artículo {item.i_codigo}"
                 )
@@ -184,8 +184,16 @@ def registrar_entrada(articulo_id):
         else:
             proveedor_id = None
         
+        # Obtener el item_id correcto
+        resultado = articulo_service.obtener_por_id(articulo_id)
+        if not resultado:
+            flash('Artículo no encontrado', 'error')
+            return redirect(request.referrer or url_for('articulos.listar_articulos'))
+        
+        articulo, item = resultado
+        
         articulo_service.registrar_entrada(
-            articulo_id, cantidad, valor_unitario, usuario_id,
+            item.id, cantidad, valor_unitario, usuario_id,
             proveedor_id=proveedor_id, observaciones=observaciones
         )
         
