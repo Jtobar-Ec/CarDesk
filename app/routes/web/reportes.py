@@ -311,7 +311,7 @@ def obtener_articulos_select():
 @bp.route('/exportar/excel', methods=['POST'])
 @login_required
 def exportar_excel():
-    """Exportar reporte a Excel con openpyxl directo"""
+    """Exportar reporte a Excel con openpyxl directo en una sola hoja"""
     data = request.form.to_dict()
     tipo_reporte = data.get('tipo_reporte')
     periodo = data.get('periodo')
@@ -339,25 +339,8 @@ def exportar_excel():
         output = io.BytesIO()
         workbook = Workbook()
         
-        # Crear hoja de portada
-        _crear_portada_excel(workbook, tipo_reporte, periodo, fecha_inicio, fecha_fin)
-        
-        # Agregar datos según el tipo de reporte
-        if tipo_reporte == 'movimientos':
-            if resultado.get('resumen'):
-                _crear_hoja_resumen(workbook, resultado['resumen'])
-            if resultado.get('detalles'):
-                _crear_hoja_detalles(workbook, resultado['detalles'])
-        elif tipo_reporte == 'inventario_articulos':
-            if resultado.get('articulos'):
-                _crear_hoja_inventario_articulos(workbook, resultado['articulos'])
-        elif tipo_reporte == 'inventario_instrumentos':
-            if resultado.get('instrumentos'):
-                _crear_hoja_inventario_instrumentos(workbook, resultado['instrumentos'])
-        elif tipo_reporte == 'proveedores':
-            _crear_hoja_proveedores(workbook, resultado['datos'])
-        elif tipo_reporte == 'consumos':
-            _crear_hoja_consumos(workbook, resultado['datos'])
+        # Crear reporte completo en una sola hoja
+        _crear_reporte_completo(workbook, tipo_reporte, periodo, fecha_inicio, fecha_fin, resultado)
         
         # Guardar workbook
         workbook.save(output)
@@ -382,205 +365,288 @@ def _aplicar_estilos_excel():
         'header_alignment': Alignment(horizontal="center", vertical="center"),
         'header_border': Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin')),
         'title_font': Font(name='Calibri', size=16, bold=True, color="2E5984"),
+        'subtitle_font': Font(name='Calibri', size=14, bold=True, color="4472C4"),
         'title_alignment': Alignment(horizontal="center", vertical="center"),
         'data_font': Font(name='Calibri', size=10),
         'data_alignment': Alignment(horizontal="center", vertical="center"),
         'data_border': Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     }
 
-def _crear_portada_excel(workbook, tipo_reporte, periodo, fecha_inicio, fecha_fin):
-    """Crear hoja de portada"""
+def _crear_reporte_completo(workbook, tipo_reporte, periodo, fecha_inicio, fecha_fin, resultado):
+    """Crear reporte completo en una sola hoja"""
     ws = workbook.active
-    ws.title = "Información General"
+    ws.title = f"Reporte {tipo_reporte.title()}"
     estilos = _aplicar_estilos_excel()
     
-    # Encabezado
-    ws['B2'] = "CONSERVATORIO NACIONAL DE MÚSICA"
-    ws['B2'].font = estilos['title_font']
-    ws['B2'].alignment = estilos['title_alignment']
-    ws.merge_cells('B2:G2')
+    current_row = 1
     
-    ws['B3'] = "Sistema de Gestión de Inventario"
-    ws['B3'].font = Font(name='Calibri', size=12, bold=True, color="4472C4")
-    ws['B3'].alignment = Alignment(horizontal="center")
-    ws.merge_cells('B3:G3')
+    # Encabezado principal
+    ws[f'A{current_row}'] = "CONSERVATORIO NACIONAL DE MÚSICA"
+    ws[f'A{current_row}'].font = estilos['title_font']
+    ws[f'A{current_row}'].alignment = estilos['title_alignment']
+    ws.merge_cells(f'A{current_row}:H{current_row}')
+    current_row += 1
+    
+    ws[f'A{current_row}'] = "Sistema de Gestión de Inventario"
+    ws[f'A{current_row}'].font = Font(name='Calibri', size=12, bold=True, color="4472C4")
+    ws[f'A{current_row}'].alignment = Alignment(horizontal="center")
+    ws.merge_cells(f'A{current_row}:H{current_row}')
+    current_row += 3
     
     # Información del reporte
-    row = 7
-    ws[f'B{row}'] = "INFORMACIÓN DEL REPORTE"
-    ws[f'B{row}'].font = Font(name='Calibri', size=12, bold=True, color="4472C4")
-    ws.merge_cells(f'B{row}:G{row}')
+    ws[f'A{current_row}'] = "INFORMACIÓN DEL REPORTE"
+    ws[f'A{current_row}'].font = estilos['subtitle_font']
+    ws.merge_cells(f'A{current_row}:H{current_row}')
+    current_row += 1
     
-    row += 2
     info_data = [
         ["Tipo de Reporte:", tipo_reporte.replace('_', ' ').title()],
         ["Generado por:", current_user.username if current_user.is_authenticated else 'Sistema'],
         ["Fecha:", datetime.now().strftime('%d/%m/%Y %H:%M:%S')],
-        ["Período:", periodo.replace('_', ' ').title()]
+        ["Período:", periodo.replace('_', ' ').title() if periodo else 'N/A']
     ]
     
     for label, value in info_data:
-        ws[f'B{row}'] = label
-        ws[f'B{row}'].font = Font(bold=True)
-        ws[f'C{row}'] = value
-        row += 1
+        ws[f'A{current_row}'] = label
+        ws[f'A{current_row}'].font = Font(bold=True)
+        ws[f'B{current_row}'] = value
+        current_row += 1
     
-    ws.column_dimensions['B'].width = 20
-    ws.column_dimensions['C'].width = 25
+    current_row += 2
+    
+    # Contenido específico según el tipo de reporte
+    if tipo_reporte == 'movimientos':
+        current_row = _agregar_seccion_movimientos(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'inventario_articulos':
+        current_row = _agregar_seccion_inventario_articulos(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'inventario_instrumentos':
+        current_row = _agregar_seccion_inventario_instrumentos(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'proveedores':
+        current_row = _agregar_seccion_proveedores(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'consumos':
+        current_row = _agregar_seccion_consumos(ws, resultado, current_row, estilos)
+    
+    # Ajustar anchos de columnas
+    for col in range(1, 9):
+        ws.column_dimensions[chr(64 + col)].width = 15
 
-def _crear_hoja_detalles(workbook, detalles):
-    """Crear hoja de detalles"""
-    ws = workbook.create_sheet("Detalle Movimientos")
-    estilos = _aplicar_estilos_excel()
+def _agregar_seccion_movimientos(ws, resultado, start_row, estilos):
+    """Agregar sección de movimientos"""
+    current_row = start_row
     
-    # Título
-    ws['A1'] = "DETALLE DE MOVIMIENTOS"
-    ws['A1'].font = estilos['title_font']
-    ws.merge_cells('A1:H1')
+    # Resumen si existe
+    if resultado.get('resumen'):
+        ws[f'A{current_row}'] = "RESUMEN DE MOVIMIENTOS"
+        ws[f'A{current_row}'].font = estilos['subtitle_font']
+        ws.merge_cells(f'A{current_row}:H{current_row}')
+        current_row += 2
+        
+        # Encabezados del resumen
+        headers_resumen = ['Tipo', 'Total Cantidad', 'Total Valor', 'Movimientos']
+        for col, header in enumerate(headers_resumen, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = estilos['header_font']
+            cell.fill = estilos['header_fill']
+            cell.alignment = estilos['header_alignment']
+            cell.border = estilos['header_border']
+        current_row += 1
+        
+        # Datos del resumen
+        for item in resultado['resumen']:
+            ws.cell(row=current_row, column=1, value=item.get('tipo_movimiento', ''))
+            ws.cell(row=current_row, column=2, value=item.get('total_cantidad', 0))
+            ws.cell(row=current_row, column=3, value=item.get('total_valor', 0))
+            ws.cell(row=current_row, column=4, value=item.get('total_movimientos', 0))
+            
+            for col in range(1, 5):
+                cell = ws.cell(row=current_row, column=col)
+                cell.font = estilos['data_font']
+                cell.border = estilos['data_border']
+            current_row += 1
+        
+        current_row += 2
+    
+    # Detalles si existen
+    if resultado.get('detalles'):
+        ws[f'A{current_row}'] = "DETALLE DE MOVIMIENTOS"
+        ws[f'A{current_row}'].font = estilos['subtitle_font']
+        ws.merge_cells(f'A{current_row}:H{current_row}')
+        current_row += 2
+        
+        # Encabezados del detalle
+        headers_detalle = ['Fecha', 'Tipo', 'Código', 'Nombre', 'Cantidad', 'V. Unitario', 'V. Total', 'Observaciones']
+        for col, header in enumerate(headers_detalle, 1):
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = estilos['header_font']
+            cell.fill = estilos['header_fill']
+            cell.alignment = estilos['header_alignment']
+            cell.border = estilos['header_border']
+        current_row += 1
+        
+        # Datos del detalle
+        for detalle in resultado['detalles']:
+            ws.cell(row=current_row, column=1, value=detalle.get('fecha', ''))
+            ws.cell(row=current_row, column=2, value=detalle.get('tipo', ''))
+            ws.cell(row=current_row, column=3, value=detalle.get('codigo_item', ''))
+            ws.cell(row=current_row, column=4, value=detalle.get('nombre_item', ''))
+            ws.cell(row=current_row, column=5, value=detalle.get('cantidad', 0))
+            ws.cell(row=current_row, column=6, value=detalle.get('valor_unitario', 0))
+            ws.cell(row=current_row, column=7, value=detalle.get('valor_total', 0))
+            ws.cell(row=current_row, column=8, value=detalle.get('observaciones', ''))
+            
+            for col in range(1, 9):
+                cell = ws.cell(row=current_row, column=col)
+                cell.font = estilos['data_font']
+                cell.border = estilos['data_border']
+            current_row += 1
+    
+    return current_row
+
+def _agregar_seccion_inventario_articulos(ws, resultado, start_row, estilos):
+    """Agregar sección de inventario de artículos"""
+    current_row = start_row
+    
+    ws[f'A{current_row}'] = "INVENTARIO DE ARTÍCULOS"
+    ws[f'A{current_row}'].font = estilos['subtitle_font']
+    ws.merge_cells(f'A{current_row}:H{current_row}')
+    current_row += 2
     
     # Encabezados
-    headers = ['Fecha', 'Tipo', 'Código', 'Nombre', 'Cantidad', 'V. Unitario', 'V. Total', 'Observaciones']
+    headers = ['Código', 'Nombre', 'Cantidad', 'Stock Mín', 'Stock Máx', 'V. Unitario', 'V. Total', 'Estado']
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=header)
+        cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = estilos['header_font']
         cell.fill = estilos['header_fill']
         cell.alignment = estilos['header_alignment']
         cell.border = estilos['header_border']
+    current_row += 1
     
     # Datos
-    for row, detalle in enumerate(detalles, 3):
-        ws.cell(row=row, column=1, value=detalle.get('fecha', ''))
-        ws.cell(row=row, column=2, value=detalle.get('tipo', ''))
-        ws.cell(row=row, column=3, value=detalle.get('codigo_item', ''))
-        ws.cell(row=row, column=4, value=detalle.get('nombre_item', ''))
-        ws.cell(row=row, column=5, value=detalle.get('cantidad', 0))
-        ws.cell(row=row, column=6, value=detalle.get('valor_unitario', 0))
-        ws.cell(row=row, column=7, value=detalle.get('valor_total', 0))
-        ws.cell(row=row, column=8, value=detalle.get('observaciones', ''))
+    for art in resultado.get('articulos', []):
+        ws.cell(row=current_row, column=1, value=art.get('codigo', ''))
+        ws.cell(row=current_row, column=2, value=art.get('nombre', ''))
+        ws.cell(row=current_row, column=3, value=art.get('cantidad', 0))
+        ws.cell(row=current_row, column=4, value=art.get('stock_min', 0))
+        ws.cell(row=current_row, column=5, value=art.get('stock_max', 0))
+        ws.cell(row=current_row, column=6, value=art.get('valor_unitario', 0))
+        ws.cell(row=current_row, column=7, value=art.get('valor_total', 0))
+        ws.cell(row=current_row, column=8, value=art.get('estado_stock', ''))
         
         for col in range(1, 9):
-            cell = ws.cell(row=row, column=col)
+            cell = ws.cell(row=current_row, column=col)
             cell.font = estilos['data_font']
             cell.border = estilos['data_border']
+        current_row += 1
     
-    # Ajustar anchos
-    for col in range(1, 9):
-        ws.column_dimensions[chr(64 + col)].width = 15
+    return current_row
 
-def _crear_hoja_resumen(workbook, resumen):
-    """Crear hoja de resumen"""
-    ws = workbook.create_sheet("Resumen Movimientos")
-    estilos = _aplicar_estilos_excel()
+def _agregar_seccion_inventario_instrumentos(ws, resultado, start_row, estilos):
+    """Agregar sección de inventario de instrumentos"""
+    current_row = start_row
     
-    ws['A1'] = "RESUMEN DE MOVIMIENTOS"
-    ws['A1'].font = estilos['title_font']
-    ws.merge_cells('A1:D1')
+    ws[f'A{current_row}'] = "INVENTARIO DE INSTRUMENTOS"
+    ws[f'A{current_row}'].font = estilos['subtitle_font']
+    ws.merge_cells(f'A{current_row}:G{current_row}')
+    current_row += 2
     
-    headers = ['Tipo', 'Total Cantidad', 'Total Valor', 'Movimientos']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-    
-    for row, item in enumerate(resumen, 3):
-        ws.cell(row=row, column=1, value=item.get('tipo_movimiento', ''))
-        ws.cell(row=row, column=2, value=item.get('total_cantidad', 0))
-        ws.cell(row=row, column=3, value=item.get('total_valor', 0))
-        ws.cell(row=row, column=4, value=item.get('total_movimientos', 0))
-
-def _crear_hoja_inventario_articulos(workbook, articulos):
-    """Crear hoja de inventario de artículos"""
-    ws = workbook.create_sheet("Inventario Artículos")
-    estilos = _aplicar_estilos_excel()
-    
-    ws['A1'] = "INVENTARIO DE ARTÍCULOS"
-    ws['A1'].font = estilos['title_font']
-    ws.merge_cells('A1:H1')
-    
-    headers = ['Código', 'Nombre', 'Cantidad', 'Stock Mín', 'Stock Máx', 'V. Unitario', 'V. Total', 'Estado']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-    
-    for row, art in enumerate(articulos, 3):
-        ws.cell(row=row, column=1, value=art.get('codigo', ''))
-        ws.cell(row=row, column=2, value=art.get('nombre', ''))
-        ws.cell(row=row, column=3, value=art.get('cantidad', 0))
-        ws.cell(row=row, column=4, value=art.get('stock_min', 0))
-        ws.cell(row=row, column=5, value=art.get('stock_max', 0))
-        ws.cell(row=row, column=6, value=art.get('valor_unitario', 0))
-        ws.cell(row=row, column=7, value=art.get('valor_total', 0))
-        ws.cell(row=row, column=8, value=art.get('estado_stock', ''))
-
-def _crear_hoja_inventario_instrumentos(workbook, instrumentos):
-    """Crear hoja de inventario de instrumentos"""
-    ws = workbook.create_sheet("Inventario Instrumentos")
-    estilos = _aplicar_estilos_excel()
-    
-    ws['A1'] = "INVENTARIO DE INSTRUMENTOS"
-    ws['A1'].font = estilos['title_font']
-    ws.merge_cells('A1:G1')
-    
+    # Encabezados
     headers = ['Código', 'Nombre', 'Marca', 'Modelo', 'Serie', 'Estado', 'Valor']
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=header)
+        cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = estilos['header_font']
         cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
-    for row, inst in enumerate(instrumentos, 3):
-        ws.cell(row=row, column=1, value=inst.get('codigo', ''))
-        ws.cell(row=row, column=2, value=inst.get('nombre', ''))
-        ws.cell(row=row, column=3, value=inst.get('marca', ''))
-        ws.cell(row=row, column=4, value=inst.get('modelo', ''))
-        ws.cell(row=row, column=5, value=inst.get('serie', ''))
-        ws.cell(row=row, column=6, value=inst.get('estado', ''))
-        ws.cell(row=row, column=7, value=inst.get('valor_unitario', 0))
+    # Datos
+    for inst in resultado.get('instrumentos', []):
+        ws.cell(row=current_row, column=1, value=inst.get('codigo', ''))
+        ws.cell(row=current_row, column=2, value=inst.get('nombre', ''))
+        ws.cell(row=current_row, column=3, value=inst.get('marca', ''))
+        ws.cell(row=current_row, column=4, value=inst.get('modelo', ''))
+        ws.cell(row=current_row, column=5, value=inst.get('serie', ''))
+        ws.cell(row=current_row, column=6, value=inst.get('estado', ''))
+        ws.cell(row=current_row, column=7, value=inst.get('valor_unitario', 0))
+        
+        for col in range(1, 8):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        current_row += 1
+    
+    return current_row
 
-def _crear_hoja_proveedores(workbook, proveedores):
-    """Crear hoja de proveedores"""
-    ws = workbook.create_sheet("Proveedores")
-    estilos = _aplicar_estilos_excel()
+def _agregar_seccion_proveedores(ws, resultado, start_row, estilos):
+    """Agregar sección de proveedores"""
+    current_row = start_row
     
-    ws['A1'] = "REPORTE DE PROVEEDORES"
-    ws['A1'].font = estilos['title_font']
-    ws.merge_cells('A1:F1')
+    ws[f'A{current_row}'] = "REPORTE DE PROVEEDORES"
+    ws[f'A{current_row}'].font = estilos['subtitle_font']
+    ws.merge_cells(f'A{current_row}:F{current_row}')
+    current_row += 2
     
+    # Encabezados
     headers = ['Código', 'Razón Social', 'CI/RUC', 'Teléfono', 'Entradas', 'Total Compras']
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=header)
+        cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = estilos['header_font']
         cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
-    for row, prov in enumerate(proveedores, 3):
-        ws.cell(row=row, column=1, value=prov.get('codigo', ''))
-        ws.cell(row=row, column=2, value=prov.get('razon_social', ''))
-        ws.cell(row=row, column=3, value=prov.get('ci_ruc', ''))
-        ws.cell(row=row, column=4, value=prov.get('telefono', ''))
-        ws.cell(row=row, column=5, value=prov.get('total_entradas', 0))
-        ws.cell(row=row, column=6, value=prov.get('total_compras', 0))
+    # Datos
+    for prov in resultado.get('datos', []):
+        ws.cell(row=current_row, column=1, value=prov.get('codigo', ''))
+        ws.cell(row=current_row, column=2, value=prov.get('razon_social', ''))
+        ws.cell(row=current_row, column=3, value=prov.get('ci_ruc', ''))
+        ws.cell(row=current_row, column=4, value=prov.get('telefono', ''))
+        ws.cell(row=current_row, column=5, value=prov.get('total_entradas', 0))
+        ws.cell(row=current_row, column=6, value=prov.get('total_compras', 0))
+        
+        for col in range(1, 7):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        current_row += 1
+    
+    return current_row
 
-def _crear_hoja_consumos(workbook, consumos):
-    """Crear hoja de consumos"""
-    ws = workbook.create_sheet("Consumos")
-    estilos = _aplicar_estilos_excel()
+def _agregar_seccion_consumos(ws, resultado, start_row, estilos):
+    """Agregar sección de consumos"""
+    current_row = start_row
     
-    ws['A1'] = "REPORTE DE CONSUMOS"
-    ws['A1'].font = estilos['title_font']
-    ws.merge_cells('A1:E1')
+    ws[f'A{current_row}'] = "REPORTE DE CONSUMOS"
+    ws[f'A{current_row}'].font = estilos['subtitle_font']
+    ws.merge_cells(f'A{current_row}:E{current_row}')
+    current_row += 2
     
+    # Encabezados
     headers = ['Código', 'Nombre', 'Consumos', 'Cantidad', 'Valor Total']
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=2, column=col, value=header)
+        cell = ws.cell(row=current_row, column=col, value=header)
         cell.font = estilos['header_font']
         cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
-    for row, cons in enumerate(consumos, 3):
-        ws.cell(row=row, column=1, value=cons.get('codigo', ''))
-        ws.cell(row=row, column=2, value=cons.get('nombre', ''))
-        ws.cell(row=row, column=3, value=cons.get('total_consumos', 0))
-        ws.cell(row=row, column=4, value=cons.get('total_cantidad', 0))
-        ws.cell(row=row, column=5, value=cons.get('total_valor', 0))
+    # Datos
+    for cons in resultado.get('datos', []):
+        ws.cell(row=current_row, column=1, value=cons.get('codigo', ''))
+        ws.cell(row=current_row, column=2, value=cons.get('nombre', ''))
+        ws.cell(row=current_row, column=3, value=cons.get('total_consumos', 0))
+        ws.cell(row=current_row, column=4, value=cons.get('total_cantidad', 0))
+        ws.cell(row=current_row, column=5, value=cons.get('total_valor', 0))
+        
+        for col in range(1, 6):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        current_row += 1
+    
+    return current_row
 
 @bp.route('/exportar/pdf', methods=['POST'])
 @login_required
