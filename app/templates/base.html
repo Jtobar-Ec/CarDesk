@@ -9,98 +9,122 @@
 </head>
 <body>
     <!-- Navegación -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('dashboard.index') }}">
-                <i class="fas fa-music"></i> Conservatorio Kardex
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                {% if current_user.is_authenticated %}
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard.index') }}">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('instrumentos.listar_instrumentos') }}">
-                            <i class="fas fa-guitar"></i> Instrumentos
-                        </a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="articulosDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-boxes"></i> Artículos
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('articulos.listar_articulos') }}">
-                                <i class="fas fa-list"></i> Lista de Artículos
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('articulos.listar_asignaciones') }}">
-                                <i class="fas fa-user-check"></i> Asignaciones
-                            </a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('articulos.stock_bajo') }}">
-                                <i class="fas fa-exclamation-triangle"></i> Stock Bajo
-                            </a></li>
-                        </ul>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('proveedores.listar_proveedores') }}">
-                            <i class="fas fa-truck"></i> Proveedores
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('reportes.index') }}">
-                            <i class="fas fa-chart-bar"></i> Reportes
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('migracion.index') }}">
-                            <i class="fas fa-database"></i> Migración
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('personal.listar_personal') }}">
-                            <i class="fas fa-users"></i> Personal
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('backups.index') }}">
-                            <i class="fas fa-database"></i> Backups
-                        </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user"></i> {{ current_user.username }}
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
-                                <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                            </a></li>
-                        </ul>
-                    </li>
-                </ul>
-                {% else %}
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login') }}">
-                            <i class="fas fa-sign-in-alt"></i> Iniciar Sesión
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.register') }}">
-                            <i class="fas fa-user-plus"></i> Registrarse
-                        </a>
-                    </li>
-                </ul>
-                {% endif %}
-            </div>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm py-2">
+  <div class="container-fluid">
+    <!-- Logo -->
+    <a class="navbar-brand fw-bold text-primary d-flex align-items-center" href="{{ url_for('dashboard.index') }}">
+      <i class="fas fa-music me-2"></i> Conservatorio Kardex
+    </a>
+
+    <!-- Botón móvil -->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarContent">
+      {% if current_user.is_authenticated %}
+      <div class="navbar-nav me-auto">
+        <!-- Dashboard -->
+        <a class="nav-link d-flex align-items-center" href="{{ url_for('dashboard.index') }}">
+          <i class="fas fa-tachometer-alt me-1 text-muted"></i> Dashboard
+        </a>
+
+        <!-- Dropdown Inventario -->
+        <div class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="inventarioDropdown" role="button" data-bs-toggle="dropdown">
+            <i class="fas fa-boxes me-1 text-muted"></i> Inventario
+          </a>
+          <ul class="dropdown-menu border-0 shadow-sm">
+            <li>
+              <a class="dropdown-item" href="{{ url_for('instrumentos.listar_instrumentos') }}">
+                <i class="fas fa-guitar me-1"></i> Instrumentos
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('articulos.listar_articulos') }}">
+                <i class="fas fa-list me-1"></i> Artículos
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('articulos.listar_asignaciones') }}">
+                <i class="fas fa-user-check me-1"></i> Asignaciones
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('articulos.stock_bajo') }}">
+                <i class="fas fa-exclamation-triangle me-1"></i> Stock Bajo
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('proveedores.listar_proveedores') }}">
+                <i class="fas fa-truck me-1"></i> Proveedores
+              </a>
+            </li>
+          </ul>
         </div>
-    </nav>
+
+        <!-- Dropdown Operaciones -->
+        <div class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="operacionesDropdown" role="button" data-bs-toggle="dropdown">
+            <i class="fas fa-cogs me-1 text-muted"></i> Operaciones
+          </a>
+          <ul class="dropdown-menu border-0 shadow-sm">
+            <li>
+              <a class="dropdown-item" href="{{ url_for('reportes.index') }}">
+                <i class="fas fa-chart-bar me-1"></i> Reportes
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('migracion.index') }}">
+                <i class="fas fa-database me-1"></i> Migración
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('backups.index') }}">
+                <i class="fas fa-save me-1"></i> Backups
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('personal.listar_personal') }}">
+                <i class="fas fa-users me-1"></i> Personal
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Dropdown Usuario -->
+      <div class="navbar-nav ms-auto">
+        <div class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+            <i class="fas fa-user-circle me-1"></i> {{ current_user.username }}
+          </a>
+          <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm">
+            <li>
+              <a class="dropdown-item" href="{{ url_for('auth.edit_profile') }}">
+                <i class="fas fa-user-edit me-1"></i> Editar Perfil
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                <i class="fas fa-sign-out-alt me-1"></i> Cerrar Sesión
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      {% else %}
+      <!-- No autenticado -->
+      <div class="navbar-nav ms-auto">
+        <a class="nav-link d-flex align-items-center" href="{{ url_for('auth.login') }}">
+          <i class="fas fa-sign-in-alt me-1"></i> Iniciar Sesión
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</nav>
 
     <!-- Contenido principal -->
     <div class="container mt-4">

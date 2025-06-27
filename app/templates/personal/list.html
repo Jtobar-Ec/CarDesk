@@ -90,18 +90,30 @@
                                     <td>{{ persona.pe_ci or '-' }}</td>
                                     <td>
                                         {% if persona.pe_cargo %}
-                                            <span class="badge badge-info">{{ persona.pe_cargo }}</span>
+                                            <span class="badge bg-info text-white">{{ persona.pe_cargo }}</span>
                                         {% else %}
-                                            -
+                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ persona.pe_telefono or '-' }}</td>
-                                    <td>{{ persona.pe_correo or '-' }}</td>
+                                    <td>
+                                        {% if persona.pe_telefono %}
+                                            <span class="text-dark">{{ persona.pe_telefono }}</span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if persona.pe_correo %}
+                                            <a href="mailto:{{ persona.pe_correo }}" class="text-primary text-decoration-none">{{ persona.pe_correo }}</a>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     <td>
                                         {% if persona.pe_estado == 'Activo' %}
-                                            <span class="badge badge-success">{{ persona.pe_estado }}</span>
+                                            <span class="badge bg-success">{{ persona.pe_estado }}</span>
                                         {% else %}
-                                            <span class="badge badge-secondary">{{ persona.pe_estado }}</span>
+                                            <span class="badge bg-secondary">{{ persona.pe_estado }}</span>
                                         {% endif %}
                                     </td>
                                     <td>
@@ -175,10 +187,10 @@
 {% endblock %}
 
 {% block scripts %}
+{% if personal %}
 <script>
 $(document).ready(function() {
     // Inicializar DataTable si hay datos
-    {% if personal %}
     $('table').DataTable({
         "language": {
             "url": "//cdn.datatables.net/plug-ins/1.10.24/i18n/Spanish.json"
@@ -189,7 +201,7 @@ $(document).ready(function() {
             { "orderable": false, "targets": -1 }
         ]
     });
-    {% endif %}
 });
 </script>
+{% endif %}
 {% endblock %}

@@ -76,27 +76,21 @@
         </div>
     </div>
 
-    <!-- Acciones rápidas -->
+    <!-- Información adicional -->
     <div class="col-md-6">
         <div class="card">
             <div class="card-header">
                 <h5 class="mb-0">
-                    <i class="fas fa-bolt"></i> Acciones Rápidas
+                    <i class="fas fa-cog"></i> Opciones
                 </h5>
             </div>
             <div class="card-body">
                 <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-success" 
-                            data-bs-toggle="modal" data-bs-target="#entradaModal">
-                        <i class="fas fa-plus"></i> Registrar Entrada
-                    </button>
-                    <button type="button" class="btn btn-danger" 
-                            data-bs-toggle="modal" data-bs-target="#salidaModal">
-                        <i class="fas fa-minus"></i> Registrar Salida
-                    </button>
-                    <hr>
-                    <a href="#" class="btn btn-outline-secondary">
+                    <a href="#" class="btn btn-primary">
                         <i class="fas fa-edit"></i> Editar Artículo
+                    </a>
+                    <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-list"></i> Ver Todos los Artículos
                     </a>
                 </div>
             </div>
@@ -203,84 +197,4 @@
     </div>
 </div>
 
-<!-- Modales -->
-<!-- Modal para entrada -->
-<div class="modal fade" id="entradaModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Registrar Entrada - {{ item.i_nombre }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ url_for('articulos.registrar_entrada', articulo_id=item.id) }}">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Proveedor</label>
-                        <select class="form-select" name="proveedor_id">
-                            <option value="">Seleccionar proveedor (opcional)</option>
-                            {% for proveedor in proveedores %}
-                            <option value="{{ proveedor.id }}">{{ proveedor.p_razonsocial }} - {{ proveedor.p_codigo }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Selecciona el proveedor de donde proviene este artículo</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" name="cantidad" required min="1">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor Unitario</label>
-                        <input type="number" class="form-control" name="valor_unitario"
-                               step="0.01" required min="0" value="{{ item.i_vUnitario }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Observaciones</label>
-                        <textarea class="form-control" name="observaciones" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-success">Registrar Entrada</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal para salida -->
-<div class="modal fade" id="salidaModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Registrar Salida - {{ item.i_nombre }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form method="POST" action="{{ url_for('articulos.registrar_salida', articulo_id=item.id) }}">
-                <div class="modal-body">
-                    <div class="alert alert-info">
-                        <strong>Stock disponible:</strong> {{ item.i_cantidad }} unidades
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Cantidad</label>
-                        <input type="number" class="form-control" name="cantidad" 
-                               required min="1" max="{{ item.i_cantidad }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Valor Unitario</label>
-                        <input type="number" class="form-control" name="valor_unitario" 
-                               step="0.01" required min="0" value="{{ item.i_vUnitario }}">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Observaciones</label>
-                        <textarea class="form-control" name="observaciones" rows="3"></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-danger">Registrar Salida</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 {% endblock %}

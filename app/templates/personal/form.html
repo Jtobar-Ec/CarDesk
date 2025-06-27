@@ -99,13 +99,8 @@
                                 <div class="form-group">
                                     <label>Código Asignado</label>
                                     <input type="text" class="form-control" value="{{ persona.pe_codigo }}" readonly>
-                                    <small class="form-text text-muted">El código se genera automáticamente y no se puede modificar</small>
                                 </div>
                                 {% else %}
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle"></i>
-                                    <strong>Código automático:</strong> Se generará automáticamente un código único (PER001, PER002, etc.) al guardar.
-                                </div>
                                 {% endif %}
                             </div>
                         </div>

@@ -47,12 +47,14 @@
                     </div>
                 </form>
                 
+                {% if show_register_link %}
                 <hr>
                 <div class="text-center">
-                    <p class="mb-0">¿No tienes cuenta? 
+                    <p class="mb-0">¿No tienes cuenta?
                         <a href="{{ url_for('auth.register') }}" class="text-decoration-none">Regístrate aquí</a>
                     </p>
                 </div>
+                {% endif %}
             </div>
         </div>
     </div>
