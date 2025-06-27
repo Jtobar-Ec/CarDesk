@@ -62,13 +62,14 @@ class ArticuloService:
         """Crea un nuevo artículo con código automático"""
         codigo = self._generar_codigo_articulo()
         
+        # Crear artículo sin stock inicial (se agregará con entrada si es necesario)
         item_data = {
             'i_codigo': codigo,
             'i_nombre': nombre,
             'i_tipo': 'articulo',
-            'i_cantidad': cantidad,
+            'i_cantidad': 0,  # Iniciar en 0, se agregará stock con entrada
             'i_vUnitario': valor_unitario,
-            'i_vTotal': cantidad * valor_unitario
+            'i_vTotal': 0  # Iniciar en 0
         }
         
         articulo_data = {
@@ -189,9 +190,17 @@ class ArticuloService:
 
     def registrar_salida_con_asignacion(self, articulo_id, cantidad, valor_unitario, usuario_id, persona_id, observaciones=None):
         """Registra una salida de artículo con asignación a personal"""
-        from app.database.models import Consumo, Persona
+        from app.database.models import Consumo, Persona, MovimientoDetalle
         from app import db
         from datetime import datetime
+        
+        # Obtener el artículo y su item para usar el ID correcto
+        resultado = self.repo.get_by_id_with_item(articulo_id)
+        if not resultado:
+            raise ValueError("Artículo no encontrado")
+        
+        articulo, item = resultado
+        item_id = item.id
         
         # Verificar que la persona existe y está activa
         persona = Persona.query.get(persona_id)
@@ -201,13 +210,7 @@ class ArticuloService:
         if persona.pe_estado != 'Activo':
             raise ValueError("Solo se puede asignar artículos a personal activo")
         
-        # Registrar la salida normal
-        movimiento = self.movimiento_repo.crear_salida(
-            articulo_id, cantidad, valor_unitario, usuario_id,
-            observaciones=f"Asignado a: {persona.pe_nombre} {persona.pe_apellido or ''} - {observaciones or ''}"
-        )
-        
-        # Crear registro de consumo (asignación)
+        # Crear registro de consumo (asignación) primero
         consumo = Consumo(
             c_numero=1,  # Número secuencial por consumo
             c_fecha=datetime.now().date(),
@@ -219,11 +222,35 @@ class ArticuloService:
             c_observaciones=observaciones or f"Artículo asignado para uso de {persona.pe_cargo or 'personal'}",
             c_estado='Asignado',
             pe_id=persona_id,
-            i_id=articulo_id,
+            i_id=item_id,
             u_id=usuario_id
         )
         
         db.session.add(consumo)
+        db.session.flush()  # Para obtener el ID del consumo
+        
+        # Crear movimiento detalle vinculado al consumo
+        movimiento = MovimientoDetalle(
+            m_fecha=datetime.now().date(),
+            m_tipo='salida',
+            m_cantidad=cantidad,
+            m_valorUnitario=valor_unitario,
+            m_valorTotal=cantidad * valor_unitario,
+            m_observaciones=f"Asignado a: {persona.pe_nombre} {persona.pe_apellido or ''} - {observaciones or ''}",
+            i_id=item_id,
+            c_id=consumo.id,  # Vincular con el consumo
+            u_id=usuario_id
+        )
+        
+        db.session.add(movimiento)
+        
+        # Actualizar stock del artículo
+        if item.i_cantidad >= cantidad:
+            item.i_cantidad -= cantidad
+            item.i_vTotal = item.i_cantidad * item.i_vUnitario
+        else:
+            raise ValueError(f"Stock insuficiente. Disponible: {item.i_cantidad}, Solicitado: {cantidad}")
+        
         db.session.commit()
         
         return movimiento, consumo
