@@ -144,3 +144,40 @@ class PersonalService:
     def obtener_por_ci(self, ci):
         """Obtiene una persona por CI"""
         return self.repo.get_by_ci(ci)
+
+    def obtener_historial_consumos(self, persona_id):
+        """Obtiene el historial de consumos de una persona"""
+        from app.database.models import Consumo, MovimientoDetalle, Item
+        from sqlalchemy import desc
+        
+        # Consulta optimizada para obtener consumos con detalles
+        consumos = db.session.query(
+            Consumo.c_fecha,
+            Consumo.c_observaciones,
+            MovimientoDetalle.m_cantidad,
+            MovimientoDetalle.m_valorUnitario,
+            MovimientoDetalle.m_valorTotal,
+            Item.i_codigo,
+            Item.i_nombre,
+            Item.i_tipo
+        ).join(MovimientoDetalle, Consumo.id == MovimientoDetalle.c_id)\
+         .join(Item, MovimientoDetalle.i_id == Item.id)\
+         .filter(Consumo.pe_id == persona_id)\
+         .order_by(desc(Consumo.c_fecha))\
+         .all()
+        
+        # Formatear los datos para el template
+        historial = []
+        for consumo in consumos:
+            historial.append({
+                'fecha': consumo.c_fecha.strftime('%d/%m/%Y'),
+                'codigo_item': consumo.i_codigo,
+                'nombre_item': consumo.i_nombre,
+                'tipo_item': consumo.i_tipo.title(),
+                'cantidad': consumo.m_cantidad,
+                'valor_unitario': float(consumo.m_valorUnitario),
+                'valor_total': float(consumo.m_valorTotal),
+                'observaciones': consumo.c_observaciones or 'Sin observaciones'
+            })
+        
+        return historial

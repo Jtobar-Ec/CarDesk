@@ -58,8 +58,11 @@ def detalle_personal(persona_id):
         flash('Persona no encontrada', 'error')
         return redirect(url_for('personal.listar_personal'))
     
+    # Obtener historial de consumos
+    consumos = personal_service.obtener_historial_consumos(persona_id)
+    
     today = date.today().strftime('%Y-%m-%d')
-    return render_template('personal/detail.html', persona=persona, today=today)
+    return render_template('personal/detail.html', persona=persona, consumos=consumos, today=today)
 
 @bp.route('/<int:persona_id>/editar', methods=['GET', 'POST'])
 @login_required
