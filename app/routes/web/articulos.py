@@ -606,23 +606,13 @@ def cambiar_estado_asignacion(consumo_id):
         observaciones = request.form.get('observaciones', '')
         estado_anterior = consumo.c_estado
         
-        # Si se marca como "Devuelto", retornar stock
+        # Si se marca como "Devuelto", retornar stock (solo cantidad física, sin movimientos)
         if nuevo_estado == 'Devuelto' and estado_anterior != 'Devuelto':
             item = Item.query.get(consumo.i_id)
             if item:
-                # Retornar la cantidad al stock
+                # Solo retornar la cantidad física al stock, sin registrar movimientos
+                # Esto no afecta valores históricos ni calculados
                 item.i_cantidad += consumo.c_cantidad
-                item.i_vTotal = item.i_cantidad * item.i_vUnitario
-                
-                # Registrar movimiento de entrada por devolución
-                articulo_service.registrar_movimiento_devolucion(
-                    item.id,
-                    consumo.c_cantidad,
-                    consumo.c_valorUnitario,
-                    current_user.id,
-                    f"Devolución de asignación #{consumo.id} - {consumo.persona.pe_nombre}"
-                )
-                
                 consumo.c_fecha_devolucion = datetime.utcnow()
         
         # Si se cambia de "Devuelto" a otro estado, descontar stock nuevamente
@@ -630,19 +620,8 @@ def cambiar_estado_asignacion(consumo_id):
             item = Item.query.get(consumo.i_id)
             if item:
                 if item.i_cantidad >= consumo.c_cantidad:
-                    # Descontar la cantidad del stock
+                    # Solo descontar la cantidad física del stock, sin registrar movimientos
                     item.i_cantidad -= consumo.c_cantidad
-                    item.i_vTotal = item.i_cantidad * item.i_vUnitario
-                    
-                    # Registrar movimiento de salida por reasignación
-                    articulo_service.registrar_movimiento_salida(
-                        item.id,
-                        consumo.c_cantidad,
-                        consumo.c_valorUnitario,
-                        current_user.id,
-                        f"Reasignación #{consumo.id} - {consumo.persona.pe_nombre}"
-                    )
-                    
                     consumo.c_fecha_devolucion = None
                 else:
                     flash(f'No hay suficiente stock disponible. Stock actual: {item.i_cantidad}', 'error')
