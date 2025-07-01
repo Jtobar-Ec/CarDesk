@@ -142,42 +142,49 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}"
-                                           class="btn btn-outline-primary" title="Ver detalles">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="{{ url_for('articulos.editar_articulo', articulo_id=item.id) }}"
-                                           class="btn btn-outline-info" title="Editar">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <button type="button" class="btn btn-outline-warning"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#precioModal{{ item.id }}"
-                                                title="Actualizar precio">
-                                            <i class="fas fa-dollar-sign"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-success"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#entradaModal{{ item.id }}"
-                                                title="Registrar entrada">
-                                            <i class="fas fa-plus"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#salidaModal{{ item.id }}"
-                                                title="Registrar salida">
-                                            <i class="fas fa-minus"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-outline-dark"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#eliminarModal{{ item.id }}"
-                                                title="Eliminar">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
+    <div class="d-flex">
+        <!-- Primer grupo de 3 botones (Ver detalles, Editar, Eliminar) -->
+        <div class="btn-group me-2" role="group">
+            <button type="button" class="btn btn-outline-warning"
+                    data-bs-toggle="modal"
+                    data-bs-target="#precioModal{{ item.id }}"
+                    title="Actualizar precio">
+                <i class="fas fa-dollar-sign"></i>
+            </button>
+            <button type="button" class="btn btn-outline-success"
+                    data-bs-toggle="modal"
+                    data-bs-target="#entradaModal{{ item.id }}"
+                    title="Registrar entrada">
+                <i class="fas fa-plus"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#salidaModal{{ item.id }}"
+                    title="Registrar salida">
+                <i class="fas fa-minus"></i>
+            </button>
+        </div>
+        
+        <!-- Segundo grupo de 3 botones (Actualizar precio, Registrar entrada, Registrar salida) -->
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}"
+               class="btn btn-outline-primary" title="Ver detalles">
+                <i class="fas fa-eye"></i>
+            </a>
+            <a href="{{ url_for('articulos.editar_articulo', articulo_id=item.id) }}"
+               class="btn btn-outline-info" title="Editar">
+                <i class="fas fa-edit"></i>
+            </a>
+            <button type="button" class="btn btn-outline-dark"
+                    data-bs-toggle="modal"
+                    data-bs-target="#eliminarModal{{ item.id }}"
+                    title="Eliminar">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </div>
+</td>
+
 
                             <!-- Modal para entrada -->
                             <div class="modal fade" id="entradaModal{{ item.id }}" tabindex="-1">
@@ -195,8 +202,18 @@
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Valor Unitario</label>
-                                                    <input type="number" class="form-control" name="valor_unitario" 
+                                                    <input type="number" class="form-control" name="valor_unitario"
                                                            step="0.01" required min="0" value="{{ item.i_vUnitario }}">
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Proveedor</label>
+                                                    <select class="form-select" name="proveedor_id">
+                                                        <option value="">Sin proveedor específico</option>
+                                                        {% for proveedor in proveedores %}
+                                                        <option value="{{ proveedor.id }}">{{ proveedor.p_codigo }} - {{ proveedor.p_razonsocial }}</option>
+                                                        {% endfor %}
+                                                    </select>
+                                                    <div class="form-text">Selecciona el proveedor que suministra este artículo (opcional)</div>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Observaciones</label>

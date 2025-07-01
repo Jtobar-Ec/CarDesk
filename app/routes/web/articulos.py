@@ -79,9 +79,13 @@ def listar_articulos():
         page=page, per_page=per_page, error_out=False
     )
     
+    # Obtener proveedores para los modales de entrada
+    proveedores = proveedor_service.obtener_todos()
+    
     return render_template('articulos/list.html',
                          articulos=pagination.items,
-                         pagination=pagination)
+                         pagination=pagination,
+                         proveedores=proveedores)
 
 def _exportar_excel(articulos):
     """Exporta artículos a Excel en orientación horizontal"""
@@ -302,37 +306,72 @@ def detalle_articulo(articulo_id):
     articulo = resultado
     item = articulo.item
     
-    # Obtener movimientos del historial
+    # Parámetros de filtrado para movimientos
+    tipo_mov = request.args.get('tipo_mov', '')
+    fecha_desde_mov = request.args.get('fecha_desde_mov', '')
+    fecha_hasta_mov = request.args.get('fecha_hasta_mov', '')
+    page_mov = int(request.args.get('page_mov', 1))
+    per_page_mov = int(request.args.get('per_page_mov', 10))
+    
+    # Obtener TODOS los movimientos para cálculos (sin filtros)
     from app.database.models import MovimientoDetalle
-    movimientos = db.session.query(MovimientoDetalle).filter_by(
+    todos_movimientos = db.session.query(MovimientoDetalle).filter_by(
         i_id=item.id
     ).order_by(MovimientoDetalle.m_fecha.asc(), MovimientoDetalle.id.asc()).all()
     
-    # Calcular stock anterior y actual para cada movimiento
+    # Calcular valores totales con TODOS los movimientos
     stock_actual = 0
-    saldo_calculado = 0  # Total histórico absoluto (solo entradas)
-    valor_total_historico = 0  # Valor total de todas las entradas
-    valor_total_actual = 0  # Valor actual considerando entradas y salidas
+    saldo_calculado = 0
+    valor_total_historico = 0
+    valor_total_actual = 0
     
-    for i, mov in enumerate(movimientos):
-        # Stock anterior es el stock antes de este movimiento
+    for mov in todos_movimientos:
         mov.m_stock_anterior = stock_actual
         
-        # Aplicar el movimiento al stock
         if mov.m_tipo == 'entrada':
             stock_actual += mov.m_cantidad
-            saldo_calculado += mov.m_cantidad  # Solo sumar entradas para saldo absoluto
-            valor_total_historico += mov.m_valorTotal  # Sumar valor de entradas
-            valor_total_actual += mov.m_valorTotal  # Sumar valor de entradas
+            saldo_calculado += mov.m_cantidad
+            valor_total_historico += mov.m_valorTotal
+            valor_total_actual += mov.m_valorTotal
         elif mov.m_tipo == 'salida':
             stock_actual -= mov.m_cantidad
-            valor_total_actual -= mov.m_valorTotal  # Restar valor de salidas
+            valor_total_actual -= mov.m_valorTotal
         
-        # Stock actual es el stock después de este movimiento
         mov.m_stock_actual = stock_actual
     
-    # Invertir orden para mostrar más recientes primero
-    movimientos.reverse()
+    # Query para movimientos con filtros y paginación
+    query_mov = db.session.query(MovimientoDetalle).filter_by(i_id=item.id)
+    
+    if tipo_mov:
+        query_mov = query_mov.filter(MovimientoDetalle.m_tipo == tipo_mov)
+    
+    if fecha_desde_mov:
+        try:
+            from datetime import datetime
+            fecha_desde_obj = datetime.strptime(fecha_desde_mov, '%Y-%m-%d').date()
+            query_mov = query_mov.filter(MovimientoDetalle.m_fecha >= fecha_desde_obj)
+        except ValueError:
+            pass
+    
+    if fecha_hasta_mov:
+        try:
+            from datetime import datetime
+            fecha_hasta_obj = datetime.strptime(fecha_hasta_mov, '%Y-%m-%d').date()
+            query_mov = query_mov.filter(MovimientoDetalle.m_fecha <= fecha_hasta_obj)
+        except ValueError:
+            pass
+    
+    # Paginación de movimientos
+    pagination_mov = query_mov.order_by(MovimientoDetalle.m_fecha.desc()).paginate(
+        page=page_mov, per_page=per_page_mov, error_out=False
+    )
+    
+    # Aplicar cálculos de stock a movimientos paginados
+    movimientos_dict = {mov.id: mov for mov in todos_movimientos}
+    for mov in pagination_mov.items:
+        if mov.id in movimientos_dict:
+            mov.m_stock_anterior = movimientos_dict[mov.id].m_stock_anterior
+            mov.m_stock_actual = movimientos_dict[mov.id].m_stock_actual
     
     # Obtener auditoría de cambios (movimientos que registran cambios)
     auditoria = db.session.query(MovimientoDetalle).filter_by(
@@ -344,17 +383,18 @@ def detalle_articulo(articulo_id):
     # Manejar exportaciones
     if export_format in ['excel', 'pdf']:
         if export_format == 'excel':
-            return _exportar_articulos_excel(articulo, item, movimientos, saldo_calculado)
+            return _exportar_articulos_excel(articulo, item, todos_movimientos, saldo_calculado)
         else:
-            return _exportar_articulos_pdf(articulo, item, movimientos, saldo_calculado)
+            return _exportar_articulos_pdf(articulo, item, todos_movimientos, saldo_calculado)
     
     # Obtener todos los proveedores para el modal
     proveedores = proveedor_service.obtener_todos()
     
     return render_template('articulos/detail.html',
-                         articulo=articulo, item=item, movimientos=movimientos,
-                         saldo_calculado=saldo_calculado, auditoria=auditoria,
-                         proveedores=proveedores, valor_total_historico=valor_total_historico,
+                         articulo=articulo, item=item, movimientos=pagination_mov.items,
+                         pagination_mov=pagination_mov, saldo_calculado=saldo_calculado,
+                         auditoria=auditoria, proveedores=proveedores,
+                         valor_total_historico=valor_total_historico,
                          valor_total_actual=valor_total_actual)
 
 @bp.route('/buscar')
