@@ -163,6 +163,43 @@
                     <i class="fas fa-history"></i> Historial de Movimientos
                 </h5>
             </div>
+            
+            <!-- Filtros para movimientos -->
+            <div class="card-body border-bottom">
+                <form method="GET" class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select form-select-sm" name="tipo_mov">
+                            <option value="">Todos</option>
+                            <option value="entrada" {{ 'selected' if request.args.get('tipo_mov') == 'entrada' }}>Entrada</option>
+                            <option value="salida" {{ 'selected' if request.args.get('tipo_mov') == 'salida' }}>Salida</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Desde</label>
+                        <input type="date" class="form-control form-control-sm" name="fecha_desde_mov"
+                               value="{{ request.args.get('fecha_desde_mov', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Hasta</label>
+                        <input type="date" class="form-control form-control-sm" name="fecha_hasta_mov"
+                               value="{{ request.args.get('fecha_hasta_mov', '') }}">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid gap-1">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-filter"></i> Filtrar
+                            </button>
+                            <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}"
+                               class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-times"></i> Limpiar
+                            </a>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            
             <div class="card-body">
                 {% if movimientos %}
                 <div class="table-responsive">
@@ -217,6 +254,55 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- Paginación de movimientos -->
+                {% if pagination_mov.pages > 1 %}
+                <nav aria-label="Paginación de movimientos" class="mt-3">
+                    <ul class="pagination pagination-sm justify-content-center">
+                        {% if pagination_mov.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id, page_mov=pagination_mov.prev_num, tipo_mov=request.args.get('tipo_mov', ''), fecha_desde_mov=request.args.get('fecha_desde_mov', ''), fecha_hasta_mov=request.args.get('fecha_hasta_mov', '')) }}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in pagination_mov.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != pagination_mov.page %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id, page_mov=page_num, tipo_mov=request.args.get('tipo_mov', ''), fecha_desde_mov=request.args.get('fecha_desde_mov', ''), fecha_hasta_mov=request.args.get('fecha_hasta_mov', '')) }}">{{ page_num }}</a>
+                                </li>
+                                {% else %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination_mov.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id, page_mov=pagination_mov.next_num, tipo_mov=request.args.get('tipo_mov', ''), fecha_desde_mov=request.args.get('fecha_desde_mov', ''), fecha_hasta_mov=request.args.get('fecha_hasta_mov', '')) }}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                    <div class="text-center text-muted">
+                        <small>
+                            Mostrando {{ pagination_mov.per_page * (pagination_mov.page - 1) + 1 }} -
+                            {{ pagination_mov.per_page * pagination_mov.page if pagination_mov.page < pagination_mov.pages else pagination_mov.total }}
+                            de {{ pagination_mov.total }} movimientos
+                        </small>
+                    </div>
+                </nav>
+                {% endif %}
+                
                 {% else %}
                 <div class="text-center py-3">
                     <i class="fas fa-history fa-2x text-muted mb-2"></i>
