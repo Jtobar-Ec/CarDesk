@@ -108,14 +108,19 @@
 
                     {% if not articulo %}
                     <div class="mb-3">
-                        <label for="proveedor_id" class="form-label">Proveedor *</label>
-                        <select class="form-select" id="proveedor_id" name="proveedor_id" required>
-                            <option value="">Seleccione un proveedor...</option>
-                            {% for proveedor in proveedores %}
-                            <option value="{{ proveedor.id }}">{{ proveedor.p_codigo }} - {{ proveedor.p_razonsocial }}</option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Proveedor que suministra este artículo</div>
+                        <label for="proveedor_id" class="form-label">Proveedor</label>
+                        <div class="input-group">
+                            <select class="form-select" id="proveedor_id" name="proveedor_id">
+                                <option value="">Sin proveedor específico</option>
+                                {% for proveedor in proveedores %}
+                                <option value="{{ proveedor.id }}">{{ proveedor.p_codigo }} - {{ proveedor.p_razonsocial }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#nuevoProveedorModal">
+                                <i class="fas fa-plus"></i> Nuevo
+                            </button>
+                        </div>
+                        <div class="form-text">Proveedor que suministra este artículo (opcional)</div>
                     </div>
                     {% endif %}
 
@@ -133,6 +138,61 @@
         </div>
     </div>
 </div>
+
+<!-- Modal para crear nuevo proveedor -->
+{% if not articulo %}
+<div class="modal fade" id="nuevoProveedorModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nuevo Proveedor</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="formNuevoProveedor">
+                    <div class="mb-3">
+                        <label for="modal_razon_social" class="form-label">Razón Social *</label>
+                        <input type="text" class="form-control" id="modal_razon_social" name="razon_social" required maxlength="100">
+                        <div class="character-count">
+                            <small class="text-muted">
+                                <span id="modal_razon_social_count">0</span>/100 caracteres
+                            </small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="modal_ci_ruc" class="form-label">CI/RUC *</label>
+                        <input type="text" class="form-control" id="modal_ci_ruc" name="ci_ruc" required maxlength="13">
+                        <div class="form-text">Cédula de identidad o RUC</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="modal_telefono" class="form-label">Teléfono</label>
+                        <input type="tel" class="form-control" id="modal_telefono" name="telefono" maxlength="15">
+                    </div>
+                    <div class="mb-3">
+                        <label for="modal_correo" class="form-label">Correo Electrónico</label>
+                        <input type="email" class="form-control" id="modal_correo" name="correo" maxlength="100">
+                    </div>
+                    <div class="mb-3">
+                        <label for="modal_direccion" class="form-label">Dirección</label>
+                        <textarea class="form-control" id="modal_direccion" name="direccion" rows="2" maxlength="100"></textarea>
+                        <div class="character-count">
+                            <small class="text-muted">
+                                <span id="modal_direccion_count">0</span>/100 caracteres
+                            </small>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="crearProveedor()">
+                    <i class="fas fa-save"></i> Crear Proveedor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -154,6 +214,141 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Calcular total inicial
     calcularTotal();
+
+    // Configuración específica para nuevo artículo
+    const modalProveedor = document.getElementById('nuevoProveedorModal');
+    if (modalProveedor) {
+        initModalProveedorForm();
+    }
 });
+
+function setupCharacterCounter(inputId, counterId, maxLength) {
+    const input = document.getElementById(inputId);
+    const counter = document.getElementById(counterId);
+    
+    if (!input || !counter) return;
+    
+    input.addEventListener('input', function() {
+        const currentLength = this.value.length;
+        counter.textContent = currentLength;
+        
+        if (currentLength > maxLength * 0.9) {
+            counter.parentElement.classList.add('text-warning');
+        } else {
+            counter.parentElement.classList.remove('text-warning');
+        }
+        
+        if (currentLength >= maxLength) {
+            counter.parentElement.classList.add('text-danger');
+            counter.parentElement.classList.remove('text-warning');
+        } else {
+            counter.parentElement.classList.remove('text-danger');
+        }
+    });
+}
+
+function initModalProveedorForm() {
+    // Contadores de caracteres para el modal
+    setupCharacterCounter('modal_razon_social', 'modal_razon_social_count', 100);
+    setupCharacterCounter('modal_direccion', 'modal_direccion_count', 100);
+
+    // Validación de CI/RUC en modal
+    const modalCiRucInput = document.getElementById('modal_ci_ruc');
+    if (modalCiRucInput) {
+        modalCiRucInput.addEventListener('input', function() {
+            const valor = this.value.replace(/\D/g, ''); // Solo números
+            this.value = valor;
+            
+            if (valor.length === 10 || valor.length === 13) {
+                this.setCustomValidity('');
+                this.classList.remove('is-invalid');
+                this.classList.add('is-valid');
+            } else if (valor.length > 0) {
+                this.setCustomValidity('CI debe tener 10 dígitos o RUC 13 dígitos');
+                this.classList.remove('is-valid');
+                this.classList.add('is-invalid');
+            } else {
+                this.setCustomValidity('');
+                this.classList.remove('is-valid', 'is-invalid');
+            }
+        });
+    }
+
+    // Validación de teléfono en modal
+    const modalTelefonoInput = document.getElementById('modal_telefono');
+    if (modalTelefonoInput) {
+        modalTelefonoInput.addEventListener('input', function() {
+            const valor = this.value.replace(/\D/g, ''); // Solo números
+            this.value = valor;
+        });
+    }
+}
+
+async function crearProveedor() {
+    const form = document.getElementById('formNuevoProveedor');
+    const formData = new FormData(form);
+    
+    // Validar formulario
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    
+    try {
+        const response = await fetch('/proveedores/crear-ajax', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Agregar el nuevo proveedor al select
+            const select = document.getElementById('proveedor_id');
+            const option = new Option(
+                `${result.proveedor.p_codigo} - ${result.proveedor.p_razonsocial}`,
+                result.proveedor.id
+            );
+            select.add(option);
+            select.value = result.proveedor.id;
+            
+            // Cerrar modal y limpiar formulario
+            const modal = bootstrap.Modal.getInstance(document.getElementById('nuevoProveedorModal'));
+            modal.hide();
+            form.reset();
+            
+            // Resetear contadores
+            const counters = form.querySelectorAll('[id$="_count"]');
+            counters.forEach(counter => counter.textContent = '0');
+            
+            // Mostrar mensaje de éxito
+            showAlert('Proveedor creado exitosamente', 'success');
+        } else {
+            showAlert(result.message || 'Error al crear proveedor', 'error');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showAlert('Error de conexión al crear proveedor', 'error');
+    }
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show`;
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    const container = document.querySelector('.container-fluid') || document.body;
+    container.insertBefore(alertDiv, container.firstChild);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
 </script>
 {% endblock %}

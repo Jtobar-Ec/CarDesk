@@ -47,12 +47,14 @@ def create_app(config_name='development'):
         app.register_blueprint(personal.bp, url_prefix='/personal')
         app.register_blueprint(backups.bp, url_prefix='/backups')
         
-    except ImportError as e:
-        print(f"Error importando blueprints: {e}")
+        
+    except ImportError as import_error:
+        error_message = str(import_error)
+        print(f"Error importando blueprints: {error_message}")
         # Crear ruta de error temporal
         @app.route('/')
         def error_route():
-            return f"Error de configuración: {str(e)}", 500
+            return f"Error de configuración: {error_message}", 500
     
     # Manejo de errores
     @app.errorhandler(404)

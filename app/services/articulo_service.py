@@ -254,3 +254,48 @@ class ArticuloService:
         db.session.commit()
         
         return movimiento, consumo
+
+    def registrar_movimiento_devolucion(self, item_id, cantidad, valor_unitario, usuario_id, observaciones=None):
+        """Registra un movimiento de entrada por devolución"""
+        from app.database.models import MovimientoDetalle
+        from app import db
+        from datetime import datetime
+        
+        movimiento = MovimientoDetalle(
+            m_fecha=datetime.now().date(),
+            m_tipo='entrada',
+            m_cantidad=cantidad,
+            m_valorUnitario=valor_unitario,
+            m_valorTotal=cantidad * valor_unitario,
+            m_observaciones=f"DEVOLUCIÓN: {observaciones or 'Artículo devuelto al inventario'}",
+            i_id=item_id,
+            u_id=usuario_id
+        )
+        
+        db.session.add(movimiento)
+        db.session.commit()
+        
+        return movimiento
+
+    def registrar_movimiento_salida(self, item_id, cantidad, valor_unitario, usuario_id, observaciones=None):
+        """Registra un movimiento de salida por reasignación"""
+        from app.database.models import MovimientoDetalle
+        from app import db
+        from datetime import datetime
+        
+        movimiento = MovimientoDetalle(
+            m_fecha=datetime.now().date(),
+            m_tipo='salida',
+            m_cantidad=cantidad,
+            m_valorUnitario=valor_unitario,
+            m_valorTotal=cantidad * valor_unitario,
+            m_observaciones=f"REASIGNACIÓN: {observaciones or 'Artículo reasignado desde devolución'}",
+            i_id=item_id,
+            u_id=usuario_id
+        )
+        
+        db.session.add(movimiento)
+        db.session.commit()
+        
+        return movimiento
+    

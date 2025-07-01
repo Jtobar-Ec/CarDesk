@@ -13,12 +13,14 @@
                 {% endif %}
             </h1>
             <div>
-                <a href="{{ url_for('articulos.listar_asignaciones') }}" class="btn btn-info me-2">
-                    <i class="fas fa-user-check"></i> Asignaciones
-                </a>
-                <a href="{{ url_for('articulos.stock_bajo') }}" class="btn btn-warning me-2">
-                    <i class="fas fa-exclamation-triangle"></i> Stock Bajo
-                </a>
+                <div class="btn-group me-2" role="group">
+                    <button type="button" class="btn btn-outline-success" onclick="exportarExcel()">
+                        <i class="fas fa-file-excel"></i> Excel
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="exportarPDF()">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                </div>
                 <a href="{{ url_for('articulos.nuevo_articulo') }}" class="btn btn-primary">
                     <i class="fas fa-plus"></i> Nuevo Artículo
                 </a>
@@ -27,32 +29,59 @@
     </div>
 </div>
 
-<!-- Buscador -->
+<!-- Filtros y Búsqueda -->
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
             <div class="card-body">
-                <form method="GET" action="{{ url_for('articulos.buscar_articulos') }}" class="row g-3">
-                    <div class="col-md-10">
+                <form method="GET" action="{{ url_for('articulos.listar_articulos') }}" class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Buscar</label>
                         <div class="input-group">
-                            <span class="input-group-text">
-                                <i class="fas fa-search"></i>
-                            </span>
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
                             <input type="text" class="form-control" name="q"
-                                   placeholder="Buscar por nombre o código..."
-                                   value="{{ termino_busqueda or '' }}">
+                                   placeholder="Nombre o código..." value="{{ request.args.get('q', '') }}">
                         </div>
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-outline-primary w-100">
-                            <i class="fas fa-search"></i> Buscar
-                        </button>
+                        <label class="form-label">Estado Stock</label>
+                        <select class="form-select" name="estado_stock">
+                            <option value="">Todos</option>
+                            <option value="critico" {{ 'selected' if request.args.get('estado_stock') == 'critico' }}>Crítico</option>
+                            <option value="bajo" {{ 'selected' if request.args.get('estado_stock') == 'bajo' }}>Bajo</option>
+                            <option value="normal" {{ 'selected' if request.args.get('estado_stock') == 'normal' }}>Normal</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Ordenar por</label>
+                        <select class="form-select" name="orden">
+                            <option value="reciente" {{ 'selected' if request.args.get('orden') == 'reciente' }}>Más recientes</option>
+                            <option value="nombre" {{ 'selected' if request.args.get('orden') == 'nombre' }}>Nombre A-Z</option>
+                            <option value="stock" {{ 'selected' if request.args.get('orden') == 'stock' }}>Stock</option>
+                            <option value="valor" {{ 'selected' if request.args.get('orden') == 'valor' }}>Valor</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Por página</label>
+                        <select class="form-select" name="per_page">
+                            <option value="10" {{ 'selected' if request.args.get('per_page') == '10' }}>10</option>
+                            <option value="25" {{ 'selected' if request.args.get('per_page') == '25' }}>25</option>
+                            <option value="50" {{ 'selected' if request.args.get('per_page') == '50' }}>50</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">&nbsp;</label>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-filter"></i> Filtrar
+                            </button>
+                        </div>
                     </div>
                 </form>
-                {% if termino_busqueda %}
+                {% if request.args %}
                 <div class="mt-2">
                     <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-sm btn-outline-secondary">
-                        <i class="fas fa-times"></i> Limpiar búsqueda
+                        <i class="fas fa-times"></i> Limpiar filtros
                     </a>
                 </div>
                 {% endif %}
@@ -104,9 +133,9 @@
                                     </small>
                                 </td>
                                 <td>
-                                    {% if item.i_cantidad <= articulo.a_stockMin %}
+                                    {% if item.i_cantidad < articulo.a_stockMin %}
                                         <span class="badge bg-danger">Stock Crítico</span>
-                                    {% elif item.i_cantidad <= (articulo.a_stockMin * 1.5) %}
+                                    {% elif item.i_cantidad <= (articulo.a_stockMin * 1.2) %}
                                         <span class="badge bg-warning">Stock Bajo</span>
                                     {% else %}
                                         <span class="badge bg-success">Normal</span>
@@ -171,7 +200,9 @@
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Observaciones</label>
-                                                    <textarea class="form-control" name="observaciones" rows="3"></textarea>
+                                                    <textarea class="form-control" name="observaciones" rows="3" maxlength="100"
+                                                              placeholder="Máximo 100 caracteres"></textarea>
+                                                    <div class="form-text">0/100 caracteres</div>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
@@ -236,8 +267,9 @@
                                                             <label class="form-label">
                                                                 <i class="fas fa-comment"></i> Descripción del uso
                                                             </label>
-                                                            <textarea class="form-control" name="observaciones" rows="3"
+                                                            <textarea class="form-control" name="observaciones" rows="3" maxlength="100"
                                                                       placeholder="Ej: Para clase de piano, proyecto de investigación, etc."></textarea>
+                                                            <div class="form-text">0/100 caracteres</div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -281,8 +313,9 @@
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Observaciones</label>
-                                                    <textarea class="form-control" name="observaciones" rows="3"
+                                                    <textarea class="form-control" name="observaciones" rows="3" maxlength="100"
                                                               placeholder="Motivo del cambio de precio..."></textarea>
+                                                    <div class="form-text">0/100 caracteres</div>
                                                 </div>
                                             </div>
                                             <div class="modal-footer">
@@ -332,6 +365,53 @@
                         </tbody>
                     </table>
                 </div>
+                
+                <!-- Paginación -->
+                {% if pagination %}
+                <nav aria-label="Paginación de artículos" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if pagination.has_prev %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('articulos.listar_articulos', page=pagination.prev_num, **request.args) }}">
+                                <i class="fas fa-chevron-left"></i> Anterior
+                            </a>
+                        </li>
+                        {% endif %}
+                        
+                        {% for page_num in pagination.iter_pages() %}
+                            {% if page_num %}
+                                {% if page_num != pagination.page %}
+                                <li class="page-item">
+                                    <a class="page-link" href="{{ url_for('articulos.listar_articulos', page=page_num, **request.args) }}">{{ page_num }}</a>
+                                </li>
+                                {% else %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ page_num }}</span>
+                                </li>
+                                {% endif %}
+                            {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">...</span>
+                            </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if pagination.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('articulos.listar_articulos', page=pagination.next_num, **request.args) }}">
+                                Siguiente <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                    <div class="text-center text-muted">
+                        Mostrando {{ pagination.per_page * (pagination.page - 1) + 1 }} -
+                        {{ pagination.per_page * pagination.page if pagination.page < pagination.pages else pagination.total }}
+                        de {{ pagination.total }} artículos
+                    </div>
+                </nav>
+                {% endif %}
+                
                 {% else %}
                 <div class="text-center py-5">
                     <i class="fas fa-boxes fa-3x text-muted mb-3"></i>
@@ -416,6 +496,35 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
+    // Contador de caracteres para observaciones
+    document.querySelectorAll('textarea[maxlength]').forEach(textarea => {
+        const maxLength = textarea.getAttribute('maxlength');
+        const counter = textarea.parentNode.querySelector('.form-text');
+        
+        textarea.addEventListener('input', function() {
+            const currentLength = this.value.length;
+            counter.textContent = `${currentLength}/${maxLength} caracteres`;
+            
+            if (currentLength > maxLength * 0.9) {
+                counter.classList.add('text-warning');
+            } else {
+                counter.classList.remove('text-warning');
+            }
+        });
+    });
 });
+
+// Funciones de exportación
+function exportarExcel() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', 'excel');
+    window.location.href = '{{ url_for("articulos.listar_articulos") }}?' + params.toString();
+}
+
+function exportarPDF() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('export', 'pdf');
+    window.open('{{ url_for("articulos.listar_articulos") }}?' + params.toString(), '_blank');
+}
 </script>
 {% endblock %}

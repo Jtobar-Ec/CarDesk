@@ -6,13 +6,16 @@ class ProveedorService:
     def __init__(self):
         self.repo = ProveedorRepository()
 
-    def obtener_todos(self):
+    def obtener_todos(self, incluir_inactivos=False):
         """Obtiene todos los proveedores"""
-        return self.repo.get_all()
+        if incluir_inactivos:
+            return self.repo.get_all()
+        else:
+            return db.session.query(Proveedor).filter_by(p_estado='Activo').all()
 
-    def obtener_por_id(self, proveedor_id):
+    def obtener_por_p_estado(self, proveedor_p_estado):
         """Obtiene un proveedor por ID"""
-        return self.repo.get_by_id(proveedor_id)
+        return self.repo.get_by_p_estado(proveedor_p_estado)
 
     def obtener_por_codigo(self, codigo):
         """Obtiene un proveedor por código"""
@@ -60,10 +63,48 @@ class ProveedorService:
             p_correo=correo
         )
 
-    def actualizar_proveedor(self, proveedor_id, **kwargs):
+    def actualizar_proveedor(self, proveedor_p_estado, **kwargs):
         """Actualiza un proveedor"""
-        return self.repo.update(proveedor_id, **kwargs)
+        return self.repo.update(proveedor_p_estado, **kwargs)
 
-    def eliminar_proveedor(self, proveedor_id):
-        """Elimina un proveedor"""
-        return self.repo.delete(proveedor_id)
+    def cambiar_estado_proveedor(self, proveedor_id, nuevo_estado):
+        """Cambia el estado de un proveedor (Activo/Inactivo)"""
+        # Obtiene el proveedor por ID
+        proveedor = self.repo.get_by_id(proveedor_id)
+        
+        # Verifica si el proveedor fue encontrado
+        if not proveedor:
+            print(f"Proveedor con id {proveedor_id} no encontrado.")
+            return False  # No se encontró el proveedor
+        
+        # Cambia el estado
+        print(f"Cambiando estado de {proveedor.p_razonsocial} ({proveedor.p_estado}) a {nuevo_estado}.")
+        proveedor.p_estado = nuevo_estado
+        
+        try:
+            # Confirma el cambio en la base de datos
+            db.session.commit()
+            print(f"Estado de {proveedor.p_razonsocial} actualizado a {nuevo_estado}.")
+            return True  # Estado cambiado exitosamente
+        except Exception as e:
+            # Si ocurre algún error, realiza un rollback
+            db.session.rollback()
+            print(f"Error al cambiar el estado: {str(e)}")
+            return False  # Error en la actualización
+        
+    def activar_proveedor(self, proveedor_p_estado):
+        """Activa un proveedor"""
+        return self.cambiar_estado_proveedor(proveedor_p_estado, 'Activo')
+
+    def desactivar_proveedor(self, proveedor_p_estado):
+        """Desactiva un proveedor"""
+        return self.cambiar_estado_proveedor(proveedor_p_estado, 'Inactivo')
+
+    def eliminar_proveedor(self, proveedor_p_estado):
+        """Elimina un proveedor (mantener por compatibilp_estadoad, pero usar desactivar)"""
+        return self.desactivar_proveedor(proveedor_p_estado)
+    
+    def obtener_por_id(self, proveedor_id):
+        """Obtiene un proveedor por ID"""
+        return db.session.query(Proveedor).get(proveedor_id)
+    

@@ -19,3 +19,11 @@ class ProveedorRepository(BaseRepository):
             (Proveedor.p_razonsocial.ilike(f'%{termino}%')) |
             (Proveedor.p_codigo.ilike(f'%{termino}%'))
         ).all()
+    
+    def get_by_p_estado(self, proveedor_p_estado):
+        """Obtiene un proveedor por su estado"""
+        return Proveedor.query.filter(Proveedor.p_estado == proveedor_p_estado).first()  # Corregido aquí
+    
+    def get_by_id(self, proveedor_id):
+        """Obtiene un proveedor por ID"""
+        return Proveedor.query.get(proveedor_id)

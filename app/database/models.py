@@ -75,6 +75,7 @@ class Proveedor(BaseModel):
     p_direccion = db.Column(db.String(200))
     p_telefono = db.Column(db.String(15))
     p_correo = db.Column(db.String(100))
+    p_estado = db.Column(db.String(20), default='Activo')  # Activo, Inactivo
     entradas = db.relationship('Entrada', backref='proveedor', lazy=True)
 
 class Item(BaseModel):
@@ -149,6 +150,8 @@ class Consumo(BaseModel):
     c_valorTotal = db.Column(db.Numeric(10, 2), nullable=False)
     c_observaciones = db.Column(db.String(500))
     c_estado = db.Column(db.String(20), default='Asignado')  # Asignado, Devuelto, Perdido, Dañado
+    c_fecha_devolucion = db.Column(db.DateTime)  # Fecha cuando se marcó como devuelto
+    c_puede_editar = db.Column(db.Boolean, default=True)  # Si se puede editar (48 horas)
     pe_id = db.Column(db.Integer, db.ForeignKey('tb_persona.id'), nullable=False)
     i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), nullable=False)
     u_id = db.Column(db.Integer, db.ForeignKey('tb_usuario.id'), nullable=False)
@@ -162,6 +165,34 @@ class Consumo(BaseModel):
     def c_id(self):
         """Alias para compatibilidad con templates"""
         return self.id
+    
+    @property
+    def puede_editar_por_tiempo(self):
+        """Verifica si la asignación puede editarse (dentro de 48 horas)"""
+        from datetime import datetime, timedelta
+        if not self.created_at:
+            return False
+        
+        limite_edicion = self.created_at + timedelta(hours=48)
+        return datetime.utcnow() <= limite_edicion
+    
+    @property
+    def tiempo_restante_edicion(self):
+        """Retorna el tiempo restante para poder editar"""
+        from datetime import datetime, timedelta
+        if not self.created_at:
+            return None
+        
+        limite_edicion = self.created_at + timedelta(hours=48)
+        tiempo_restante = limite_edicion - datetime.utcnow()
+        
+        if tiempo_restante.total_seconds() <= 0:
+            return None
+        
+        horas = int(tiempo_restante.total_seconds() // 3600)
+        minutos = int((tiempo_restante.total_seconds() % 3600) // 60)
+        
+        return f"{horas}h {minutos}m"
 
 class Entrada(BaseModel):
     __tablename__ = 'tb_entrada'

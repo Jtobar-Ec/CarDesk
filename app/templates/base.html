@@ -35,11 +35,13 @@
             <i class="fas fa-boxes me-1 text-muted"></i> Inventario
           </a>
           <ul class="dropdown-menu border-0 shadow-sm">
+            <!--
             <li>
               <a class="dropdown-item" href="{{ url_for('instrumentos.listar_instrumentos') }}">
                 <i class="fas fa-guitar me-1"></i> Instrumentos
               </a>
             </li>
+            -->
             <li>
               <a class="dropdown-item" href="{{ url_for('articulos.listar_articulos') }}">
                 <i class="fas fa-list me-1"></i> Artículos
@@ -56,8 +58,8 @@
               </a>
             </li>
             <li>
-              <a class="dropdown-item" href="{{ url_for('proveedores.listar_proveedores') }}">
-                <i class="fas fa-truck me-1"></i> Proveedores
+              <a class="dropdown-item" href="{{ url_for('articulos.listar_movimientos') }}">
+                <i class="fas fa-exchange-alt me-1"></i> Movimientos
               </a>
             </li>
           </ul>
@@ -84,13 +86,28 @@
                 <i class="fas fa-save me-1"></i> Backups
               </a>
             </li>
+          </ul>
+        </div>
+         <!-- Dropdown personal -->
+      
+      <div class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="operacionesDropdown" role="button" data-bs-toggle="dropdown">
+            <i class="fas fa-cogs me-1 text-muted"></i> Personal
+          </a>
+          <ul class="dropdown-menu border-0 shadow-sm">
             <li>
               <a class="dropdown-item" href="{{ url_for('personal.listar_personal') }}">
-                <i class="fas fa-users me-1"></i> Personal
+                <i class="fas fa-users me-1"></i> Personal de Institución
+              </a>
+            </li>
+            <li>
+              <a class="dropdown-item" href="{{ url_for('proveedores.listar_proveedores') }}">
+                <i class="fas fa-truck me-1"></i> Proveedores
               </a>
             </li>
           </ul>
         </div>
+      </div>
       </div>
 
       <!-- Dropdown Usuario -->

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Movimientos de Inventario{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <i class="fas fa-exchange-alt"></i>
+                        Movimientos de Inventario
+                    </h3>
+                    <div class="card-tools">
+                        <button type="button" class="btn btn-success btn-sm" onclick="exportarExcel()">
+                            <i class="fas fa-file-excel"></i> Excel
+                        </button>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="exportarPDF()">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros -->
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label for="buscar">Buscar:</label>
+                            <input type="text" class="form-control" id="buscar" name="buscar" 
+                                   placeholder="Artículo, código, usuario..." 
+                                   value="{{ request.args.get('buscar', '') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="tipo">Tipo:</label>
+                            <select class="form-control" id="tipo" name="tipo">
+                                <option value="">Todos</option>
+                                <option value="entrada" {{ 'selected' if request.args.get('tipo') == 'entrada' }}>Entrada</option>
+                                <option value="salida" {{ 'selected' if request.args.get('tipo') == 'salida' }}>Salida</option>
+                                <option value="devolucion" {{ 'selected' if request.args.get('tipo') == 'devolucion' }}>Devolución</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label for="fecha_desde">Desde:</label>
+                            <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" 
+                                   value="{{ request.args.get('fecha_desde', '') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="fecha_hasta">Hasta:</label>
+                            <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" 
+                                   value="{{ request.args.get('fecha_hasta', '') }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label for="ordenar">Ordenar por:</label>
+                            <select class="form-control" id="ordenar" name="ordenar">
+                                <option value="fecha_desc" {{ 'selected' if request.args.get('ordenar') == 'fecha_desc' }}>Fecha (Reciente)</option>
+                                <option value="fecha_asc" {{ 'selected' if request.args.get('ordenar') == 'fecha_asc' }}>Fecha (Antigua)</option>
+                                <option value="articulo" {{ 'selected' if request.args.get('ordenar') == 'articulo' }}>Artículo</option>
+                                <option value="tipo" {{ 'selected' if request.args.get('ordenar') == 'tipo' }}>Tipo</option>
+                                <option value="valor" {{ 'selected' if request.args.get('ordenar') == 'valor' }}>Valor</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label>&nbsp;</label>
+                            <button type="button" class="btn btn-primary btn-block" onclick="aplicarFiltros()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de movimientos -->
+                <div class="card-body table-responsive p-0">
+                    <table class="table table-hover text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Artículo</th>
+                                <th>Código</th>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Valor Unit.</th>
+                                <th>Valor Total</th>
+                                <th>Usuario</th>
+                                <th>Proveedor</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for movimiento, item, usuario in movimientos %}
+                            <tr>
+                                <td>{{ movimiento.m_fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>
+                                    <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}" class="text-decoration-none">
+                                        {{ item.i_nombre }}
+                                    </a>
+                                </td>
+                                <td>{{ item.i_codigo }}</td>
+                                <td>
+                                    {% if movimiento.m_tipo == 'entrada' %}
+                                        <span class="badge badge-success">
+                                            <i class="fas fa-arrow-down"></i> Entrada
+                                        </span>
+                                    {% elif movimiento.m_tipo == 'salida' %}
+                                        <span class="badge badge-warning">
+                                            <i class="fas fa-arrow-up"></i> Salida
+                                        </span>
+                                    {% elif movimiento.m_tipo == 'devolucion' %}
+                                        <span class="badge badge-info">
+                                            <i class="fas fa-undo"></i> Devolución
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ movimiento.m_cantidad }}</td>
+                                <td>${{ "%.2f"|format(movimiento.m_valorUnitario) }}</td>
+                                <td>${{ "%.2f"|format(movimiento.m_valorTotal) }}</td>
+                                <td>{{ usuario.u_username }}</td>
+                                <td>
+                                    {% if movimiento.e_id and movimiento.entrada and movimiento.entrada.proveedor %}
+                                        {{ movimiento.entrada.proveedor.p_razonsocial }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if movimiento.m_observaciones %}
+                                        <span title="{{ movimiento.m_observaciones }}">
+                                            {{ movimiento.m_observaciones[:50] }}{% if movimiento.m_observaciones|length > 50 %}...{% endif %}
+                                        </span>
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="10" class="text-center text-muted">
+                                    <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                    No se encontraron movimientos
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Paginación -->
+                {% if pagination.pages > 1 %}
+                <div class="card-footer">
+                    <div class="row">
+                        <div class="col-sm-12 col-md-5">
+                            <div class="dataTables_info">
+                                Mostrando {{ pagination.per_page * (pagination.page - 1) + 1 }} a 
+                                {{ pagination.per_page * (pagination.page - 1) + pagination.items|length }} 
+                                de {{ pagination.total }} movimientos
+                            </div>
+                        </div>
+                        <div class="col-sm-12 col-md-7">
+                            <div class="dataTables_paginate paging_simple_numbers float-right">
+                                <ul class="pagination">
+                                    {% if pagination.has_prev %}
+                                        <li class="paginate_button page-item">
+                                            <a href="{{ url_for('articulos.listar_movimientos', page=pagination.prev_num, **request.args) }}" 
+                                               class="page-link">Anterior</a>
+                                        </li>
+                                    {% endif %}
+                                    
+                                    {% for page_num in pagination.iter_pages() %}
+                                        {% if page_num %}
+                                            {% if page_num != pagination.page %}
+                                                <li class="paginate_button page-item">
+                                                    <a href="{{ url_for('articulos.listar_movimientos', page=page_num, **request.args) }}" 
+                                                       class="page-link">{{ page_num }}</a>
+                                                </li>
+                                            {% else %}
+                                                <li class="paginate_button page-item active">
+                                                    <span class="page-link">{{ page_num }}</span>
+                                                </li>
+                                            {% endif %}
+                                        {% else %}
+                                            <li class="paginate_button page-item disabled">
+                                                <span class="page-link">…</span>
+                                            </li>
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    {% if pagination.has_next %}
+                                        <li class="paginate_button page-item">
+                                            <a href="{{ url_for('articulos.listar_movimientos', page=pagination.next_num, **request.args) }}" 
+                                               class="page-link">Siguiente</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function aplicarFiltros() {
+    const params = new URLSearchParams();
+    
+    const buscar = document.getElementById('buscar').value;
+    const tipo = document.getElementById('tipo').value;
+    const fechaDesde = document.getElementById('fecha_desde').value;
+    const fechaHasta = document.getElementById('fecha_hasta').value;
+    const ordenar = document.getElementById('ordenar').value;
+    
+    if (buscar) params.append('buscar', buscar);
+    if (tipo) params.append('tipo', tipo);
+    if (fechaDesde) params.append('fecha_desde', fechaDesde);
+    if (fechaHasta) params.append('fecha_hasta', fechaHasta);
+    if (ordenar) params.append('ordenar', ordenar);
+    
+    window.location.href = '{{ url_for("articulos.listar_movimientos") }}?' + params.toString();
+}
+
+function exportarExcel() {
+    const params = new URLSearchParams(window.location.search);
+    params.append('export', 'excel');
+    window.location.href = '{{ url_for("articulos.listar_movimientos") }}?' + params.toString();
+}
+
+function exportarPDF() {
+    const params = new URLSearchParams(window.location.search);
+    params.append('export', 'pdf');
+    window.location.href = '{{ url_for("articulos.listar_movimientos") }}?' + params.toString();
+}
+
+// Aplicar filtros al presionar Enter
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('buscar').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            aplicarFiltros();
+        }
+    });
+});
+</script>
+{% endblock %}

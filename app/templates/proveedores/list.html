@@ -23,6 +23,28 @@
 
 <div class="row">
     <div class="col-12">
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="d-flex align-items-center">
+                    <div class="form-check form-switch me-3">
+                        <input class="form-check-input" type="checkbox" id="mostrarInactivos"
+                               {{ 'checked' if incluir_inactivos else '' }}
+                               onchange="toggleInactivos()">
+                        <label class="form-check-label" for="mostrarInactivos">
+                            Mostrar proveedores inactivos
+                        </label>
+                    </div>
+                    <small class="text-muted">
+                        Total: {{ proveedores|length }} proveedor{{ 's' if proveedores|length != 1 else '' }}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
         <div class="card">
             <div class="card-body">
                 {% if proveedores %}
@@ -35,18 +57,22 @@
                                 <th>CI/RUC</th>
                                 <th>Teléfono</th>
                                 <th>Correo</th>
+                                <th>Estado</th>
                                 <th>Fecha Registro</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for proveedor in proveedores %}
-                            <tr>
+                            <tr class="{{ 'table-secondary' if proveedor.p_estado == 'Inactivo' else '' }}">
                                 <td>
                                     <code>{{ proveedor.p_codigo }}</code>
                                 </td>
                                 <td>
                                     <strong>{{ proveedor.p_razonsocial }}</strong>
+                                    {% if proveedor.p_estado == 'Inactivo' %}
+                                        <small class="text-muted">(Inactivo)</small>
+                                    {% endif %}
                                 </td>
                                 <td>{{ proveedor.p_ci_ruc }}</td>
                                 <td>
@@ -67,22 +93,41 @@
                                         <span class="text-muted">No registrado</span>
                                     {% endif %}
                                 </td>
+                                <td>
+                                    {% if proveedor.p_estado == 'Activo' %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Inactivo</span>
+                                    {% endif %}
+                                </td>
                                 <td>{{ proveedor.created_at.strftime('%d/%m/%Y') if proveedor.created_at else 'N/A' }}</td>
                                 <td>
                                     <div class="btn-group btn-group-sm" role="group">
-                                        <a href="{{ url_for('proveedores.detalle_proveedor', proveedor_id=proveedor.id) }}" 
+                                        <a href="{{ url_for('proveedores.detalle_proveedor', proveedor_id=proveedor.id) }}"
                                            class="btn btn-outline-primary" title="Ver detalles">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{{ url_for('proveedores.editar_proveedor', proveedor_id=proveedor.id) }}" 
+                                        <a href="{{ url_for('proveedores.editar_proveedor', proveedor_id=proveedor.id) }}"
                                            class="btn btn-outline-secondary" title="Editar">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <button type="button" class="btn btn-outline-danger" 
-                                                onclick="confirmarEliminacion({{ proveedor.id }}, '{{ proveedor.p_razonsocial }}')" 
-                                                title="Eliminar">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        {% if proveedor.p_estado == 'Activo' %}
+                                            <button type="button" class="btn btn-outline-warning btn-cambiar-estado"
+                                                    data-proveedor-id="{{ proveedor.id }}"
+                                                    data-proveedor-nombre="{{ proveedor.p_razonsocial }}"
+                                                    data-nuevo-estado="Inactivo"
+                                                    title="Desactivar">
+                                                <i class="fas fa-ban"></i>
+                                            </button>
+                                        {% else %}
+                                            <button type="button" class="btn btn-outline-success btn-cambiar-estado"
+                                                    data-proveedor-id="{{ proveedor.id }}"
+                                                    data-proveedor-nombre="{{ proveedor.p_razonsocial }}"
+                                                    data-nuevo-estado="Activo"
+                                                    title="Activar">
+                                                <i class="fas fa-check"></i>
+                                            </button>
+                                        {% endif %}
                                     </div>
                                 </td>
                             </tr>
@@ -105,26 +150,27 @@
     </div>
 </div>
 
-<!-- Modal de confirmación para eliminar -->
-<div class="modal fade" id="eliminarModal" tabindex="-1">
+<!-- Modal de confirmación para cambiar estado -->
+<div class="modal fade" id="cambiarEstadoModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Confirmar Eliminación</h5>
+                <h5 class="modal-title" id="tituloModal">Confirmar Cambio de Estado</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>¿Está seguro que desea eliminar el proveedor <strong id="nombreProveedor"></strong>?</p>
-                <p class="text-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    Esta acción no se puede deshacer.
+                <p id="mensajeModal"></p>
+                <p class="text-info">
+                    <i class="fas fa-info-circle"></i>
+                    <span id="descripcionAccion"></span>
                 </p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <form id="formEliminar" method="POST" style="display: inline;">
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash"></i> Eliminar
+                <form id="formCambiarEstado" method="POST" style="display: inline;">
+                    <input type="hidden" name="nuevo_estado" id="nuevoEstado">
+                    <button type="submit" class="btn" id="btnConfirmar">
+                        <i class="fas fa-check"></i> <span id="textoBoton">Confirmar</span>
                     </button>
                 </form>
             </div>
@@ -135,12 +181,60 @@
 
 {% block scripts %}
 <script>
-function confirmarEliminacion(proveedorId, nombreProveedor) {
-    document.getElementById('nombreProveedor').textContent = nombreProveedor;
-    document.getElementById('formEliminar').action = `/proveedores/${proveedorId}/eliminar`;
+document.addEventListener('DOMContentLoaded', function() {
+    // Event listener para botones de cambiar estado
+    document.querySelectorAll('.btn-cambiar-estado').forEach(button => {
+        button.addEventListener('click', function() {
+            const proveedorId = this.dataset.proveedorId;
+            const nombreProveedor = this.dataset.proveedorNombre;
+            const nuevoEstado = this.dataset.nuevoEstado;
+            
+            confirmarCambioEstado(proveedorId, nombreProveedor, nuevoEstado);
+        });
+    });
+});
+
+function confirmarCambioEstado(proveedorId, nombreProveedor, nuevoEstado) {
+    const modal = document.getElementById('cambiarEstadoModal');
+    const titulo = document.getElementById('tituloModal');
+    const mensaje = document.getElementById('mensajeModal');
+    const descripcion = document.getElementById('descripcionAccion');
+    const boton = document.getElementById('btnConfirmar');
+    const textoBoton = document.getElementById('textoBoton');
+    const form = document.getElementById('formCambiarEstado');
+    const inputEstado = document.getElementById('nuevoEstado');
     
-    const modal = new bootstrap.Modal(document.getElementById('eliminarModal'));
-    modal.show();
+    if (nuevoEstado === 'Inactivo') {
+        titulo.textContent = 'Confirmar Desactivación';
+        mensaje.innerHTML = `¿Está seguro que desea <strong>desactivar</strong> el proveedor <strong>${nombreProveedor}</strong>?`;
+        descripcion.textContent = 'El proveedor no aparecerá en las listas de selección, pero se mantendrán sus registros históricos.';
+        boton.className = 'btn btn-warning';
+        textoBoton.textContent = 'Desactivar';
+        boton.querySelector('i').className = 'fas fa-ban';
+    } else {
+        titulo.textContent = 'Confirmar Activación';
+        mensaje.innerHTML = `¿Está seguro que desea <strong>activar</strong> el proveedor <strong>${nombreProveedor}</strong>?`;
+        descripcion.textContent = 'El proveedor volverá a estar disponible en las listas de selección.';
+        boton.className = 'btn btn-success';
+        textoBoton.textContent = 'Activar';
+        boton.querySelector('i').className = 'fas fa-check';
+    }
+    
+    inputEstado.value = nuevoEstado;
+    form.action = `/proveedores/${proveedorId}/cambiar-estado`;
+    
+    const bootstrapModal = new bootstrap.Modal(modal);
+    bootstrapModal.show();
+}
+
+function toggleInactivos() {
+    const checkbox = document.getElementById('mostrarInactivos');
+    const incluirInactivos = checkbox.checked ? 'true' : 'false';
+    
+    // Actualizar URL con el parámetro
+    const url = new URL(window.location);
+    url.searchParams.set('incluir_inactivos', incluirInactivos);
+    window.location.href = url.toString();
 }
 </script>
 {% endblock %}
