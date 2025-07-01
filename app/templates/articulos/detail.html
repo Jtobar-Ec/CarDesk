@@ -52,10 +52,10 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><strong>Saldo Calculado:</strong></td>
+                        <td><strong>Saldo Total Inventario:</strong></td>
                         <td>
                             <span class="badge bg-info fs-6">{{ saldo_calculado }}</span>
-                            <small class="text-muted d-block">Según historial de movimientos</small>
+                            <small class="text-muted d-block">Total histórico de entradas</small>
                         </td>
                     </tr>
                     <tr>
@@ -233,8 +233,6 @@ Auditoría de cambios
                                 <th>Cantidad</th>
                                 <th>Valor Unit.</th>
                                 <th>Valor Total</th>
-                                <th>Valor Anterior</th>
-                                <th>Valor Actual</th>
                                 <th>Stock Anterior</th>
                                 <th>Stock Actual</th>
                                 <th>Proveedor</th>
@@ -257,13 +255,8 @@ Auditoría de cambios
                                 <td>{{ movimiento.m_cantidad }}</td>
                                 <td>${{ "%.2f"|format(movimiento.m_valorUnitario) }}</td>
                                 <td>${{ "%.2f"|format(movimiento.m_valorTotal) }}</td>
-                                
-                                <!-- Mostrar valores anteriores y actuales del artículo -->
-                                <td>${{ "%.2f"|format(movimiento.m_valor_anterior if movimiento.m_valor_anterior is not none else 0) }}</td> <!-- Valor Anterior -->
-                                <td>${{ "%.2f"|format(movimiento.m_valor_actual if movimiento.m_valor_actual is not none else 0) }}</td>    <!-- Valor Actual -->
-                                
-                                <td>{{ movimiento.m_stock_anterior if movimiento.m_stock_anterior is not none else 0 }}</td> <!-- Stock Anterior -->
-                                <td>{{ movimiento.m_stock_actual if movimiento.m_stock_actual is not none else 0 }}</td>    <!-- Stock Actual -->
+                                <td>{{ movimiento.m_stock_anterior if movimiento.m_stock_anterior is not none else 0 }}</td>
+                                <td>{{ movimiento.m_stock_actual if movimiento.m_stock_actual is not none else 0 }}</td>
                                 
                                 <td>
                                     {% if movimiento.e_id %}

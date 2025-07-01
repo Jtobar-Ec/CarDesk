@@ -310,6 +310,8 @@ def detalle_articulo(articulo_id):
     
     # Calcular stock anterior y actual para cada movimiento
     stock_actual = 0
+    saldo_calculado = 0  # Total histórico absoluto (solo entradas)
+    
     for i, mov in enumerate(movimientos):
         # Stock anterior es el stock antes de este movimiento
         mov.m_stock_anterior = stock_actual
@@ -317,14 +319,12 @@ def detalle_articulo(articulo_id):
         # Aplicar el movimiento al stock
         if mov.m_tipo == 'entrada':
             stock_actual += mov.m_cantidad
+            saldo_calculado += mov.m_cantidad  # Solo sumar entradas para saldo absoluto
         elif mov.m_tipo == 'salida':
             stock_actual -= mov.m_cantidad
         
         # Stock actual es el stock después de este movimiento
         mov.m_stock_actual = stock_actual
-    
-    # Calcular saldo final
-    saldo_calculado = stock_actual
     
     # Invertir orden para mostrar más recientes primero
     movimientos.reverse()
