@@ -306,15 +306,28 @@ def detalle_articulo(articulo_id):
     from app.database.models import MovimientoDetalle
     movimientos = db.session.query(MovimientoDetalle).filter_by(
         i_id=item.id
-    ).order_by(MovimientoDetalle.m_fecha.desc()).all()
+    ).order_by(MovimientoDetalle.m_fecha.asc(), MovimientoDetalle.id.asc()).all()
     
-    # Calcular saldo según historial de movimientos
-    saldo_calculado = 0
-    for mov in reversed(movimientos):  # Procesar en orden cronológico
+    # Calcular stock anterior y actual para cada movimiento
+    stock_actual = 0
+    for i, mov in enumerate(movimientos):
+        # Stock anterior es el stock antes de este movimiento
+        mov.m_stock_anterior = stock_actual
+        
+        # Aplicar el movimiento al stock
         if mov.m_tipo == 'entrada':
-            saldo_calculado += mov.m_cantidad
+            stock_actual += mov.m_cantidad
         elif mov.m_tipo == 'salida':
-            saldo_calculado -= mov.m_cantidad
+            stock_actual -= mov.m_cantidad
+        
+        # Stock actual es el stock después de este movimiento
+        mov.m_stock_actual = stock_actual
+    
+    # Calcular saldo final
+    saldo_calculado = stock_actual
+    
+    # Invertir orden para mostrar más recientes primero
+    movimientos.reverse()
     
     # Obtener auditoría de cambios (movimientos que registran cambios)
     auditoria = db.session.query(MovimientoDetalle).filter_by(
@@ -671,19 +684,23 @@ def listar_movimientos():
     
     # Manejar exportaciones
     if export_format in ['excel', 'pdf']:
-        movimientos = query.all()
+        movimientos_raw = query.all()
+        movimientos_con_stock = _calcular_stock_movimientos(movimientos_raw)
         if export_format == 'excel':
-            return _exportar_movimientos_excel(movimientos)
+            return _exportar_movimientos_excel(movimientos_con_stock)
         else:
-            return _exportar_movimientos_pdf(movimientos)
+            return _exportar_movimientos_pdf(movimientos_con_stock)
     
     # Paginación
     pagination = query.paginate(
         page=page, per_page=per_page, error_out=False
     )
     
+    # Calcular stock anterior y actual para los movimientos paginados
+    movimientos_con_stock = _calcular_stock_movimientos(pagination.items)
+    
     return render_template('articulos/movimientos.html',
-                         movimientos=pagination.items,
+                         movimientos=movimientos_con_stock,
                          pagination=pagination)
 
 def _exportar_movimientos_excel(movimientos):
