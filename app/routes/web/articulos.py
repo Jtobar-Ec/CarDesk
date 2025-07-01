@@ -684,23 +684,19 @@ def listar_movimientos():
     
     # Manejar exportaciones
     if export_format in ['excel', 'pdf']:
-        movimientos_raw = query.all()
-        movimientos_con_stock = _calcular_stock_movimientos(movimientos_raw)
+        movimientos = query.all()
         if export_format == 'excel':
-            return _exportar_movimientos_excel(movimientos_con_stock)
+            return _exportar_movimientos_excel(movimientos)
         else:
-            return _exportar_movimientos_pdf(movimientos_con_stock)
+            return _exportar_movimientos_pdf(movimientos)
     
     # Paginación
     pagination = query.paginate(
         page=page, per_page=per_page, error_out=False
     )
     
-    # Calcular stock anterior y actual para los movimientos paginados
-    movimientos_con_stock = _calcular_stock_movimientos(pagination.items)
-    
     return render_template('articulos/movimientos.html',
-                         movimientos=movimientos_con_stock,
+                         movimientos=pagination.items,
                          pagination=pagination)
 
 def _exportar_movimientos_excel(movimientos):
