@@ -7,7 +7,7 @@
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>
-                <i class="fas fa-user-check"></i> Asignaciones de Artículos
+                <i class="fas fa-user-check"></i> Historial de Asignaciones
                 {% if persona_filtro %}
                     <small class="text-muted">- {{ persona_filtro.pe_nombre }} {{ persona_filtro.pe_apellido or '' }}</small>
                 {% endif %}
@@ -30,6 +30,52 @@
     <div class="col-12">
         <div class="card">
             <div class="card-body">
+                <!-- Filtrador de asignaciones -->
+                <!-- Filtros y botones de exportación -->
+                <form method="GET" action="{{ url_for('articulos.listar_asignaciones') }}" class="mb-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="estado" class="form-label">Estado</label>
+                            <select class="form-select" name="estado" id="estado">
+                                <option value="">Todos los estados</option>
+                                <option value="Asignado" {% if request.args.get('estado') == 'Asignado' %}selected{% endif %}>Asignado</option>
+                                <option value="Devuelto" {% if request.args.get('estado') == 'Devuelto' %}selected{% endif %}>Devuelto</option>
+                                <option value="Perdido" {% if request.args.get('estado') == 'Perdido' %}selected{% endif %}>Perdido</option>
+                                <option value="Dañado" {% if request.args.get('estado') == 'Dañado' %}selected{% endif %}>Dañado</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="articulo" class="form-label">Artículo</label>
+                            <input type="text" class="form-control" name="articulo" id="articulo"
+                                   value="{{ request.args.get('articulo', '') }}" placeholder="Buscar artículo...">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="persona" class="form-label">Personal</label>
+                            <input type="text" class="form-control" name="persona" id="persona"
+                                   value="{{ request.args.get('persona', '') }}" placeholder="Buscar persona...">
+                        </div>
+                        <div class="col-12">
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-filter"></i> Filtrar
+                                </button>
+                                <a href="{{ url_for('articulos.listar_asignaciones') }}" class="btn btn-outline-secondary">
+                                    <i class="fas fa-times"></i> Limpiar
+                                </a>
+                                <div class="ms-auto d-flex gap-2">
+                                    <a href="{{ url_for('articulos.exportar_asignaciones', export_format='excel', **request.args) }}" class="btn btn-success">
+                                        <i class="fas fa-file-excel"></i> Excel
+                                    </a>
+                                    <a href="{{ url_for('articulos.exportar_asignaciones', export_format='pdf', **request.args) }}" class="btn btn-danger">
+                                        <i class="fas fa-file-pdf"></i> PDF
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+
+
                 {% if asignaciones %}
                 <div class="table-responsive">
                     <table class="table table-striped table-hover">
