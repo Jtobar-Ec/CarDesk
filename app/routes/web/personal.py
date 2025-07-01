@@ -242,8 +242,12 @@ def buscar_personal():
     termino = request.args.get('termino', '').strip()
     personal = []
     
-    if termino:
+    # Solo buscar si hay un término de búsqueda válido
+    if termino and len(termino) >= 2:
         personal = personal_service.buscar_por_nombre(termino)
+    elif termino and len(termino) < 2:
+        # Si el término es muy corto, mostrar mensaje de error
+        flash('El término de búsqueda debe tener al menos 2 caracteres', 'warning')
     
     return render_template('personal/search.html', personal=personal, termino=termino)
 

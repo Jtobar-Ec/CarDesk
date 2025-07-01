@@ -27,15 +27,15 @@
             <div class="card-body">
                 <!-- Formulario de búsqueda -->
                 <form method="GET" class="mb-4">
-                    <div class="row">
+                    <div class="row g-3">
                         <div class="col-md-8">
                             <div class="input-group">
                                 <span class="input-group-text">
                                     <i class="fas fa-search"></i>
                                 </span>
                                 <input type="text" class="form-control" name="nombre"
-                                       value="{{ nombre }}" placeholder="Buscar por código o razón social...">
-                                <button type="submit" class="btn btn-primary">
+                                       value="{{ nombre or '' }}" placeholder="Buscar por código o razón social...">
+                                <button type="submit" class="btn btn-primary" {{ 'disabled' if not nombre }}>
                                     <i class="fas fa-search"></i> Buscar
                                 </button>
                             </div>
@@ -43,7 +43,7 @@
                         <div class="col-md-4">
                             {% if nombre %}
                             <a href="{{ url_for('proveedores.buscar_proveedores') }}" class="btn btn-outline-secondary">
-                                <i class="fas fa-times"></i> Limpiar
+                                <i class="fas fa-times"></i> Limpiar filtros
                             </a>
                             {% endif %}
                         </div>

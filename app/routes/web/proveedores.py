@@ -85,8 +85,12 @@ def buscar_proveedores():
     nombre = request.args.get('nombre', '').strip()
     proveedores = []
     
-    if nombre:
+    # Solo buscar si hay un término de búsqueda válido
+    if nombre and len(nombre) >= 2:
         proveedores = proveedor_service.buscar_por_nombre(nombre)
+    elif nombre and len(nombre) < 2:
+        # Si el término es muy corto, mostrar mensaje de error
+        flash('El término de búsqueda debe tener al menos 2 caracteres', 'warning')
     
     return render_template('proveedores/search.html', proveedores=proveedores, nombre=nombre)
 

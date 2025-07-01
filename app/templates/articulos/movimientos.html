@@ -24,49 +24,58 @@
 
                 <!-- Filtros -->
                 <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label for="buscar">Buscar:</label>
-                            <input type="text" class="form-control" id="buscar" name="buscar" 
-                                   placeholder="Artículo, código, usuario..." 
-                                   value="{{ request.args.get('buscar', '') }}">
+                    <form method="GET" action="{{ url_for('articulos.listar_movimientos') }}" class="mb-3">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Buscar</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" name="buscar"
+                                           placeholder="Artículo, código, usuario..."
+                                           value="{{ request.args.get('buscar', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" name="tipo">
+                                    <option value="">Todos</option>
+                                    <option value="entrada" {{ 'selected' if request.args.get('tipo') == 'entrada' }}>Entrada</option>
+                                    <option value="salida" {{ 'selected' if request.args.get('tipo') == 'salida' }}>Salida</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Desde</label>
+                                <input type="date" class="form-control" name="fecha_desde"
+                                       value="{{ request.args.get('fecha_desde', '') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Hasta</label>
+                                <input type="date" class="form-control" name="fecha_hasta"
+                                       value="{{ request.args.get('fecha_hasta', '') }}">
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Ordenar por</label>
+                                <select class="form-select" name="ordenar">
+                                    <option value="fecha_desc" {{ 'selected' if request.args.get('ordenar') == 'fecha_desc' }}>Fecha (Reciente)</option>
+                                    <option value="fecha_asc" {{ 'selected' if request.args.get('ordenar') == 'fecha_asc' }}>Fecha (Antigua)</option>
+                                    <option value="articulo" {{ 'selected' if request.args.get('ordenar') == 'articulo' }}>Artículo</option>
+                                    <option value="tipo" {{ 'selected' if request.args.get('ordenar') == 'tipo' }}>Tipo</option>
+                                    <option value="valor" {{ 'selected' if request.args.get('ordenar') == 'valor' }}>Valor</option>
+                                </select>
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-filter"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="limpiarFiltros()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label for="tipo">Tipo:</label>
-                            <select class="form-control" id="tipo" name="tipo">
-                                <option value="">Todos</option>
-                                <option value="entrada" {{ 'selected' if request.args.get('tipo') == 'entrada' }}>Entrada</option>
-                                <option value="salida" {{ 'selected' if request.args.get('tipo') == 'salida' }}>Salida</option>
-                                <option value="devolucion" {{ 'selected' if request.args.get('tipo') == 'devolucion' }}>Devolución</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="fecha_desde">Desde:</label>
-                            <input type="date" class="form-control" id="fecha_desde" name="fecha_desde" 
-                                   value="{{ request.args.get('fecha_desde', '') }}">
-                        </div>
-                        <div class="col-md-2">
-                            <label for="fecha_hasta">Hasta:</label>
-                            <input type="date" class="form-control" id="fecha_hasta" name="fecha_hasta" 
-                                   value="{{ request.args.get('fecha_hasta', '') }}">
-                        </div>
-                        <div class="col-md-2">
-                            <label for="ordenar">Ordenar por:</label>
-                            <select class="form-control" id="ordenar" name="ordenar">
-                                <option value="fecha_desc" {{ 'selected' if request.args.get('ordenar') == 'fecha_desc' }}>Fecha (Reciente)</option>
-                                <option value="fecha_asc" {{ 'selected' if request.args.get('ordenar') == 'fecha_asc' }}>Fecha (Antigua)</option>
-                                <option value="articulo" {{ 'selected' if request.args.get('ordenar') == 'articulo' }}>Artículo</option>
-                                <option value="tipo" {{ 'selected' if request.args.get('ordenar') == 'tipo' }}>Tipo</option>
-                                <option value="valor" {{ 'selected' if request.args.get('ordenar') == 'valor' }}>Valor</option>
-                            </select>
-                        </div>
-                        <div class="col-md-1">
-                            <label>&nbsp;</label>
-                            <button type="button" class="btn btn-primary btn-block" onclick="aplicarFiltros()">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                    </div>
+                    </form>
                 </div>
 
                 <!-- Tabla de movimientos -->
@@ -202,43 +211,20 @@
 </div>
 
 <script>
-function aplicarFiltros() {
-    const params = new URLSearchParams();
-    
-    const buscar = document.getElementById('buscar').value;
-    const tipo = document.getElementById('tipo').value;
-    const fechaDesde = document.getElementById('fecha_desde').value;
-    const fechaHasta = document.getElementById('fecha_hasta').value;
-    const ordenar = document.getElementById('ordenar').value;
-    
-    if (buscar) params.append('buscar', buscar);
-    if (tipo) params.append('tipo', tipo);
-    if (fechaDesde) params.append('fecha_desde', fechaDesde);
-    if (fechaHasta) params.append('fecha_hasta', fechaHasta);
-    if (ordenar) params.append('ordenar', ordenar);
-    
-    window.location.href = '{{ url_for("articulos.listar_movimientos") }}?' + params.toString();
+function limpiarFiltros() {
+    window.location.href = '{{ url_for("articulos.listar_movimientos") }}';
 }
 
 function exportarExcel() {
     const params = new URLSearchParams(window.location.search);
-    params.append('export', 'excel');
+    params.set('export', 'excel');
     window.location.href = '{{ url_for("articulos.listar_movimientos") }}?' + params.toString();
 }
 
 function exportarPDF() {
     const params = new URLSearchParams(window.location.search);
-    params.append('export', 'pdf');
+    params.set('export', 'pdf');
     window.location.href = '{{ url_for("articulos.listar_movimientos") }}?' + params.toString();
 }
-
-// Aplicar filtros al presionar Enter
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('buscar').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            aplicarFiltros();
-        }
-    });
-});
 </script>
 {% endblock %}

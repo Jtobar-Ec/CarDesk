@@ -213,6 +213,11 @@ class MovimientoDetalle(BaseModel):
     m_valorUnitario = db.Column(db.Numeric(10, 2), nullable=False)
     m_valorTotal = db.Column(db.Numeric(10, 2), nullable=False)
     m_observaciones = db.Column(db.String(200))
+    # Campos para auditoría mejorada
+    m_stock_anterior = db.Column(db.Integer)  # Stock antes del movimiento
+    m_stock_actual = db.Column(db.Integer)    # Stock después del movimiento
+    m_valor_anterior = db.Column(db.Numeric(10, 2))  # Valor unitario anterior
+    m_valor_actual = db.Column(db.Numeric(10, 2))    # Valor unitario actual
     i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), nullable=False)
     e_id = db.Column(db.Integer, db.ForeignKey('tb_entrada.id'))
     c_id = db.Column(db.Integer, db.ForeignKey('tb_consumo.id'))

@@ -2,6 +2,57 @@ from app.database.repositories.articulos import ArticuloRepository
 from app.database.repositories.movimientos import MovimientoRepository
 from app.database.models import Item
 from app.database import db
+def _registrar_movimiento_con_auditoria(item_id, tipo, cantidad, valor_unitario, usuario_id, observaciones=None, entrada_id=None, consumo_id=None):
+    """Registra un movimiento con auditoría completa de valores anteriores y actuales"""
+    from app.database.models import MovimientoDetalle
+    
+    item = Item.query.get(item_id)
+    if not item:
+        raise ValueError("Item no encontrado")
+    
+    # Capturar valores anteriores
+    stock_anterior = item.i_cantidad
+    valor_anterior = float(item.i_vUnitario)
+    
+    # Calcular nuevos valores
+    if tipo == 'entrada':
+        stock_actual = stock_anterior + cantidad
+    elif tipo == 'salida':
+        stock_actual = stock_anterior - cantidad
+    else:  # ajuste
+        stock_actual = cantidad
+    
+    valor_actual = float(valor_unitario)
+    valor_total = cantidad * valor_unitario
+    
+    # Crear movimiento con auditoría
+    movimiento = MovimientoDetalle(
+        m_fecha=datetime.now().date(),
+        m_tipo=tipo,
+        m_cantidad=cantidad,
+        m_valorUnitario=valor_unitario,
+        m_valorTotal=valor_total,
+        m_observaciones=observaciones,
+        m_stock_anterior=stock_anterior,
+        m_stock_actual=stock_actual,
+        m_valor_anterior=valor_anterior,
+        m_valor_actual=valor_actual,
+        i_id=item_id,
+        e_id=entrada_id,
+        c_id=consumo_id,
+        u_id=usuario_id
+    )
+    
+    # Actualizar item
+    item.i_cantidad = stock_actual
+    item.i_vUnitario = valor_unitario
+    item.i_vTotal = stock_actual * valor_unitario
+    
+    db.session.add(movimiento)
+    db.session.commit()
+    
+    return movimiento
+
 
 class ArticuloService:
     def __init__(self):

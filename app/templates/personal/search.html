@@ -27,14 +27,17 @@
                         <div class="col-md-8">
                             <form method="GET" action="{{ url_for('personal.buscar_personal') }}">
                                 <div class="input-group input-group-lg">
-                                    <input type="text" class="form-control" name="termino" 
-                                           placeholder="Buscar por nombre, apellido, código o CI..." 
-                                           value="{{ termino }}" autofocus>
-                                    <div class="input-group-append">
-                                        <button class="btn btn-primary" type="submit">
-                                            <i class="fas fa-search"></i> Buscar
-                                        </button>
-                                    </div>
+                                    <input type="text" class="form-control" name="termino"
+                                           placeholder="Buscar por nombre, apellido, código o CI..."
+                                           value="{{ termino or '' }}" autofocus>
+                                    <button class="btn btn-primary" type="submit" {{ 'disabled' if not termino }}>
+                                        <i class="fas fa-search"></i> Buscar
+                                    </button>
+                                    {% if termino %}
+                                    <a href="{{ url_for('personal.buscar_personal') }}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-times"></i> Limpiar
+                                    </a>
+                                    {% endif %}
                                 </div>
                             </form>
                         </div>

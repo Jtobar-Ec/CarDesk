@@ -27,46 +27,61 @@
                 
                 <!-- Filtros -->
                 <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-3">
-                            <label for="buscar">Buscar:</label>
-                            <input type="text" class="form-control" id="buscar" name="buscar"
-                                   placeholder="Nombre, código, CI, correo..."
-                                   value="{{ request.args.get('buscar', '') }}">
+                    <form method="GET" action="{{ url_for('personal.listar_personal') }}" class="mb-3">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Buscar</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                    <input type="text" class="form-control" name="buscar"
+                                           placeholder="Nombre, código, CI, correo..."
+                                           value="{{ request.args.get('buscar', '') }}">
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Cargo</label>
+                                <select class="form-select" name="cargo">
+                                    <option value="">Todos</option>
+                                    {% for cargo_opt in cargos_disponibles %}
+                                        <option value="{{ cargo_opt }}" {{ 'selected' if request.args.get('cargo') == cargo_opt }}>{{ cargo_opt }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Estado</label>
+                                <select class="form-select" name="estado">
+                                    <option value="">Todos</option>
+                                    <option value="Activo" {{ 'selected' if request.args.get('estado') == 'Activo' }}>Activo</option>
+                                    <option value="Inactivo" {{ 'selected' if request.args.get('estado') == 'Inactivo' }}>Inactivo</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Ordenar por</label>
+                                <select class="form-select" name="ordenar">
+                                    <option value="nombre" {{ 'selected' if request.args.get('ordenar') == 'nombre' }}>Nombre</option>
+                                    <option value="codigo" {{ 'selected' if request.args.get('ordenar') == 'codigo' }}>Código</option>
+                                    <option value="cargo" {{ 'selected' if request.args.get('ordenar') == 'cargo' }}>Cargo</option>
+                                    <option value="estado" {{ 'selected' if request.args.get('ordenar') == 'estado' }}>Estado</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-filter"></i> Filtrar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-1">
+                                <label class="form-label">&nbsp;</label>
+                                <div class="d-grid">
+                                    <button type="button" class="btn btn-outline-secondary" onclick="limpiarFiltros()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div class="col-md-2">
-                            <label for="cargo">Cargo:</label>
-                            <select class="form-control" id="cargo" name="cargo">
-                                <option value="">Todos</option>
-                                {% for cargo_opt in cargos_disponibles %}
-                                    <option value="{{ cargo_opt }}" {{ 'selected' if request.args.get('cargo') == cargo_opt }}>{{ cargo_opt }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="estado">Estado:</label>
-                            <select class="form-control" id="estado" name="estado">
-                                <option value="">Todos</option>
-                                <option value="Activo" {{ 'selected' if request.args.get('estado') == 'Activo' }}>Activo</option>
-                                <option value="Inactivo" {{ 'selected' if request.args.get('estado') == 'Inactivo' }}>Inactivo</option>
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label for="ordenar">Ordenar por:</label>
-                            <select class="form-control" id="ordenar" name="ordenar">
-                                <option value="nombre" {{ 'selected' if request.args.get('ordenar') == 'nombre' }}>Nombre</option>
-                                <option value="codigo" {{ 'selected' if request.args.get('ordenar') == 'codigo' }}>Código</option>
-                                <option value="cargo" {{ 'selected' if request.args.get('ordenar') == 'cargo' }}>Cargo</option>
-                                <option value="estado" {{ 'selected' if request.args.get('ordenar') == 'estado' }}>Estado</option>
-                            </select>
-                        </div>
-                        <div class="col-md-1">
-                            <label>&nbsp;</label>
-                            <button type="button" class="btn btn-primary btn-block" onclick="aplicarFiltros()">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                    </div>
+                    </form>
                 </div>
 
                 <!-- Tabla de personal -->
@@ -216,42 +231,21 @@
 </div>
 
 <script>
-function aplicarFiltros() {
-    const params = new URLSearchParams();
-    
-    const buscar = document.getElementById('buscar').value;
-    const cargo = document.getElementById('cargo').value;
-    const estado = document.getElementById('estado').value;
-    const ordenar = document.getElementById('ordenar').value;
-    
-    if (buscar) params.append('buscar', buscar);
-    if (cargo) params.append('cargo', cargo);
-    if (estado) params.append('estado', estado);
-    if (ordenar) params.append('ordenar', ordenar);
-    
-    window.location.href = '{{ url_for("personal.listar_personal") }}?' + params.toString();
+function limpiarFiltros() {
+    window.location.href = '{{ url_for("personal.listar_personal") }}';
 }
 
 function exportarExcel() {
     const params = new URLSearchParams(window.location.search);
-    params.append('export', 'excel');
+    params.set('export', 'excel');
     window.location.href = '{{ url_for("personal.listar_personal") }}?' + params.toString();
 }
 
 function exportarPDF() {
     const params = new URLSearchParams(window.location.search);
-    params.append('export', 'pdf');
+    params.set('export', 'pdf');
     window.location.href = '{{ url_for("personal.listar_personal") }}?' + params.toString();
 }
-
-// Aplicar filtros al presionar Enter
-document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('buscar').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            aplicarFiltros();
-        }
-    });
-});
 </script>
             </div>
         </div>

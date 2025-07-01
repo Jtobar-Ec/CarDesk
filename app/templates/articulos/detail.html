@@ -140,8 +140,8 @@
         </div>
     </div>
 </div>
-
-<!-- Auditoría de cambios -->
+<!--
+Auditoría de cambios
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
@@ -181,17 +181,19 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if cambio.m_tipo == 'ajuste_precio' %}
-                                        -
+                                    {% if cambio.m_stock_anterior is not none %}
+                                        <span class="text-muted">{{ cambio.m_stock_anterior }}</span>
                                     {% else %}
-                                        {{ cambio.stock_anterior or '-' }}
+                                        -
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if cambio.m_tipo == 'ajuste_precio' %}
+                                    {% if cambio.m_stock_actual is not none %}
+                                        <strong>{{ cambio.m_stock_actual }}</strong>
+                                    {% elif cambio.m_tipo == 'ajuste_precio' %}
                                         ${{ "%.2f"|format(cambio.m_valorUnitario) }}
                                     {% else %}
-                                        {{ cambio.stock_nuevo or '-' }}
+                                        -
                                     {% endif %}
                                 </td>
                                 <td>{{ cambio.m_observaciones or '-' }}</td>
@@ -210,7 +212,7 @@
         </div>
     </div>
 </div>
-
+-->
 <!-- Historial de movimientos -->
 <div class="row mt-4">
     <div class="col-12">
@@ -231,6 +233,10 @@
                                 <th>Cantidad</th>
                                 <th>Valor Unit.</th>
                                 <th>Valor Total</th>
+                                <th>Valor Anterior</th>
+                                <th>Valor Actual</th>
+                                <th>Stock Anterior</th>
+                                <th>Stock Actual</th>
                                 <th>Proveedor</th>
                                 <th>Observaciones</th>
                             </tr>
@@ -251,6 +257,14 @@
                                 <td>{{ movimiento.m_cantidad }}</td>
                                 <td>${{ "%.2f"|format(movimiento.m_valorUnitario) }}</td>
                                 <td>${{ "%.2f"|format(movimiento.m_valorTotal) }}</td>
+                                
+                                <!-- Mostrar valores anteriores y actuales del artículo -->
+                                <td>${{ "%.2f"|format(movimiento.m_valor_anterior if movimiento.m_valor_anterior is not none else 0) }}</td> <!-- Valor Anterior -->
+                                <td>${{ "%.2f"|format(movimiento.m_valor_actual if movimiento.m_valor_actual is not none else 0) }}</td>    <!-- Valor Actual -->
+                                
+                                <td>{{ movimiento.m_stock_anterior if movimiento.m_stock_anterior is not none else 0 }}</td> <!-- Stock Anterior -->
+                                <td>{{ movimiento.m_stock_actual if movimiento.m_stock_actual is not none else 0 }}</td>    <!-- Stock Actual -->
+                                
                                 <td>
                                     {% if movimiento.e_id %}
                                         {% set entrada = movimiento.entrada %}
