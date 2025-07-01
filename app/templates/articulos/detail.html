@@ -52,7 +52,7 @@
                         </td>
                     </tr>
                     <tr>
-                        <td><strong>Saldo Total Inventario:</strong></td>
+                        <td><strong>Stock Total Inventario:</strong></td>
                         <td>
                             <span class="badge bg-info fs-6">{{ saldo_calculado }}</span>
                             <small class="text-muted d-block">Total histórico de entradas</small>
@@ -71,8 +71,22 @@
                         <td>${{ "%.2f"|format(item.i_vUnitario) }}</td>
                     </tr>
                     <tr>
-                        <td><strong>Valor Total:</strong></td>
+                        <td><strong>Valor Total Actual:</strong></td>
                         <td>${{ "%.2f"|format(item.i_vTotal) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Valor Total Histórico:</strong></td>
+                        <td>
+                            <span class="badge bg-primary fs-6">${{ "%.2f"|format(valor_total_historico) }}</span>
+                            <small class="text-muted d-block">Solo entradas</small>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><strong>Valor Total Calculado:</strong></td>
+                        <td>
+                            <span class="badge bg-secondary fs-6">${{ "%.2f"|format(valor_total_actual) }}</span>
+                            <small class="text-muted d-block">Entradas - Salidas</small>
+                        </td>
                     </tr>
                     <tr>
                         <td><strong>Fecha Registro:</strong></td>
@@ -140,79 +154,6 @@
         </div>
     </div>
 </div>
-<!--
-Auditoría de cambios
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-shield-alt"></i> Auditoría de Cambios
-                </h5>
-            </div>
-            <div class="card-body">
-                {% if auditoria %}
-                <div class="table-responsive">
-                    <table class="table table-striped table-sm">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Usuario</th>
-                                <th>Tipo de Cambio</th>
-                                <th>Valor Anterior</th>
-                                <th>Valor Nuevo</th>
-                                <th>Observaciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for cambio in auditoria %}
-                            <tr>
-                                <td>{{ cambio.m_fecha.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>{{ cambio.usuario.u_username if cambio.usuario else 'Sistema' }}</td>
-                                <td>
-                                    {% if cambio.m_tipo == 'ajuste_precio' %}
-                                        <span class="badge bg-warning">Cambio de Precio</span>
-                                    {% elif cambio.m_tipo == 'entrada' %}
-                                        <span class="badge bg-success">Entrada Stock</span>
-                                    {% elif cambio.m_tipo == 'salida' %}
-                                        <span class="badge bg-danger">Salida Stock</span>
-                                    {% else %}
-                                        <span class="badge bg-info">{{ cambio.m_tipo|title }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if cambio.m_stock_anterior is not none %}
-                                        <span class="text-muted">{{ cambio.m_stock_anterior }}</span>
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if cambio.m_stock_actual is not none %}
-                                        <strong>{{ cambio.m_stock_actual }}</strong>
-                                    {% elif cambio.m_tipo == 'ajuste_precio' %}
-                                        ${{ "%.2f"|format(cambio.m_valorUnitario) }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </td>
-                                <td>{{ cambio.m_observaciones or '-' }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-3">
-                    <i class="fas fa-shield-alt fa-2x text-muted mb-2"></i>
-                    <p class="text-muted">No hay cambios registrados en la auditoría.</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
--->
 <!-- Historial de movimientos -->
 <div class="row mt-4">
     <div class="col-12">

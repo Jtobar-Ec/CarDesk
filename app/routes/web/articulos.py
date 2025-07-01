@@ -311,6 +311,8 @@ def detalle_articulo(articulo_id):
     # Calcular stock anterior y actual para cada movimiento
     stock_actual = 0
     saldo_calculado = 0  # Total histórico absoluto (solo entradas)
+    valor_total_historico = 0  # Valor total de todas las entradas
+    valor_total_actual = 0  # Valor actual considerando entradas y salidas
     
     for i, mov in enumerate(movimientos):
         # Stock anterior es el stock antes de este movimiento
@@ -320,8 +322,11 @@ def detalle_articulo(articulo_id):
         if mov.m_tipo == 'entrada':
             stock_actual += mov.m_cantidad
             saldo_calculado += mov.m_cantidad  # Solo sumar entradas para saldo absoluto
+            valor_total_historico += mov.m_valorTotal  # Sumar valor de entradas
+            valor_total_actual += mov.m_valorTotal  # Sumar valor de entradas
         elif mov.m_tipo == 'salida':
             stock_actual -= mov.m_cantidad
+            valor_total_actual -= mov.m_valorTotal  # Restar valor de salidas
         
         # Stock actual es el stock después de este movimiento
         mov.m_stock_actual = stock_actual
@@ -349,7 +354,8 @@ def detalle_articulo(articulo_id):
     return render_template('articulos/detail.html',
                          articulo=articulo, item=item, movimientos=movimientos,
                          saldo_calculado=saldo_calculado, auditoria=auditoria,
-                         proveedores=proveedores)
+                         proveedores=proveedores, valor_total_historico=valor_total_historico,
+                         valor_total_actual=valor_total_actual)
 
 @bp.route('/buscar')
 def buscar_articulos():
