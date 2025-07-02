@@ -6,6 +6,10 @@ flask-wtf==1.1.1
 flask-migrate==4.0.4
 Werkzeug==2.3.7
 
+# Database drivers
+PyMySQL==1.1.0
+cryptography==41.0.7
+
 # Development and testing
 pytest==7.4.0
 
@@ -18,3 +22,5 @@ reportlab==4.0.4
 # Cross-platform server dependencies
 waitress==2.1.2; sys_platform == "win32"
 python-dotenv==1.0.0
+
+

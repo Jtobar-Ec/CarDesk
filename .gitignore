@@ -53,14 +53,20 @@ logs/
 
 # Archivos de configuración local
 .env
+.env.local
+.env.production
 config.local.py
 
 # Archivos de prueba y desarrollo
 test_*.py
 *_test.py
-migrate_*.py
 init_database.py
 seed_data.py
+
+# Archivos de migración y configuración sensible
+.env.backup
+mysql_credentials.txt
+database_backup.sql
 
 # Archivos del sistema
 .DS_Store

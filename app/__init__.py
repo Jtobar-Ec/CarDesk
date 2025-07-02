@@ -1,14 +1,13 @@
 from flask import Flask
 from flask_login import LoginManager
 from .database import db, init_app
+from .config import Config
 
 def create_app(config_name='development'):
     app = Flask(__name__)
     
-    # Configuración básica de la base de datos
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///conservatorio.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'dev-key-segura'  # Para flash messages
+    # Cargar configuración completa desde config.py
+    app.config.from_object(Config)
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB máximo para uploads
     
     # Inicializar la base de datos
