@@ -7,12 +7,14 @@ from app.database.models import (
     Proveedor, Persona, Consumo, Entrada, Usuario
 )
 from app.database import db
+from app.utils.export_utils import (
+    crear_cabecera_excel, crear_estilos_excel, ajustar_columnas_excel,
+    crear_cabecera_pdf, crear_estilos_pdf, aplicar_estilo_tabla_pdf
+)
 import io
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.lib import colors
 
@@ -311,7 +313,7 @@ def obtener_articulos_select():
 @bp.route('/exportar/excel', methods=['POST'])
 @login_required
 def exportar_excel():
-    """Exportar reporte a Excel con openpyxl directo en una sola hoja"""
+    """Exportar reporte a Excel con cabecera institucional estandarizada"""
     data = request.form.to_dict()
     tipo_reporte = data.get('tipo_reporte')
     periodo = data.get('periodo')
@@ -338,9 +340,21 @@ def exportar_excel():
         # Crear archivo Excel
         output = io.BytesIO()
         workbook = Workbook()
+        ws = workbook.active
+        ws.title = f"Reporte {tipo_reporte.title()}"
         
-        # Crear reporte completo en una sola hoja
-        _crear_reporte_completo(workbook, tipo_reporte, periodo, fecha_inicio, fecha_fin, resultado)
+        # Crear cabecera institucional estandarizada
+        current_row = crear_cabecera_excel(
+            ws,
+            f"Reporte de {tipo_reporte.replace('_', ' ').title()}",
+            current_user.username if current_user.is_authenticated else 'Sistema'
+        )
+        
+        # Crear reporte completo
+        _crear_reporte_completo_optimizado(ws, tipo_reporte, periodo, fecha_inicio, fecha_fin, resultado, current_row)
+        
+        # Ajustar columnas
+        ajustar_columnas_excel(ws)
         
         # Guardar workbook
         workbook.save(output)
@@ -356,7 +370,25 @@ def exportar_excel():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Funciones auxiliares para Excel
+def _crear_reporte_completo_optimizado(ws, tipo_reporte, periodo, fecha_inicio, fecha_fin, resultado, current_row):
+    """Crear reporte completo optimizado usando las utilidades centralizadas"""
+    estilos = crear_estilos_excel()
+    
+    # Contenido específico según el tipo de reporte
+    if tipo_reporte == 'movimientos':
+        current_row = _agregar_seccion_movimientos(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'inventario_articulos':
+        current_row = _agregar_seccion_inventario_articulos(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'inventario_instrumentos':
+        current_row = _agregar_seccion_inventario_instrumentos(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'proveedores':
+        current_row = _agregar_seccion_proveedores(ws, resultado, current_row, estilos)
+    elif tipo_reporte == 'consumos':
+        current_row = _agregar_seccion_consumos(ws, resultado, current_row, estilos)
+    
+    return current_row
+
+# Funciones auxiliares para Excel (mantenidas para compatibilidad)
 def _aplicar_estilos_excel():
     """Definir estilos para Excel"""
     return {
@@ -651,7 +683,7 @@ def _agregar_seccion_consumos(ws, resultado, start_row, estilos):
 @bp.route('/exportar/pdf', methods=['POST'])
 @login_required
 def exportar_pdf():
-    """Exportar reporte a PDF"""
+    """Exportar reporte a PDF con cabecera institucional estandarizada"""
     data = request.form.to_dict()
     tipo_reporte = data.get('tipo_reporte')
     periodo = data.get('periodo')
@@ -680,21 +712,11 @@ def exportar_pdf():
         doc = SimpleDocTemplate(output, pagesize=A4)
         elements = []
         
+        # Crear cabecera institucional estandarizada
+        elements.extend(crear_cabecera_pdf(f"Reporte de {tipo_reporte.replace('_', ' ').title()}"))
+        
         # Crear estilos
-        styles = _crear_estilos_profesionales()
-        
-        # Agregar encabezado institucional
-        elements.extend(_crear_encabezado_institucional(styles))
-        
-        # Información del reporte
-        encabezado_data = {
-            'categoria': tipo_reporte.replace('_', ' ').title(),
-            'periodo': periodo.replace('_', ' ').title(),
-            'fecha_inicio': fecha_inicio,
-            'fecha_fin': fecha_fin,
-            'usuario': current_user.username if current_user.is_authenticated else 'Sistema'
-        }
-        elements.extend(_crear_informacion_reporte(encabezado_data, styles))
+        styles = crear_estilos_pdf()
         
         # Agregar contenido según el tipo de reporte
         if tipo_reporte == 'movimientos':
@@ -725,104 +747,7 @@ def exportar_pdf():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# Funciones auxiliares para PDF
-def _crear_estilos_profesionales():
-    """Crear estilos profesionales para PDF"""
-    styles = getSampleStyleSheet()
-    
-    # Estilo para título principal
-    styles.add(ParagraphStyle(
-        name='TituloInstitucional',
-        parent=styles['Title'],
-        fontSize=18,
-        fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#2E5984'),
-        alignment=1,
-        spaceAfter=10
-    ))
-    
-    # Estilo para subtítulo
-    styles.add(ParagraphStyle(
-        name='SubtituloInstitucional',
-        parent=styles['Normal'],
-        fontSize=12,
-        fontName='Helvetica',
-        textColor=colors.HexColor('#4472C4'),
-        alignment=1,
-        spaceAfter=20
-    ))
-    
-    # Estilo para títulos de sección
-    styles.add(ParagraphStyle(
-        name='TituloSeccion',
-        parent=styles['Heading2'],
-        fontSize=14,
-        fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#2E5984'),
-        spaceBefore=20,
-        spaceAfter=12
-    ))
-    
-    # Estilo para información
-    styles.add(ParagraphStyle(
-        name='Informacion',
-        parent=styles['Normal'],
-        fontSize=10,
-        fontName='Helvetica',
-        leftIndent=20,
-        spaceAfter=6
-    ))
-    
-    return styles
-
-def _crear_encabezado_institucional(styles):
-    """Crear encabezado institucional profesional"""
-    elements = []
-    
-    # Logo placeholder y título
-    elements.append(Paragraph("CONSERVATORIO NACIONAL DE MÚSICA", styles['TituloInstitucional']))
-    elements.append(Paragraph("Sistema de Gestión de Inventario", styles['SubtituloInstitucional']))
-    elements.append(Paragraph("Cochapata E12-56, Quito - Ecuador", styles['SubtituloInstitucional']))
-    elements.append(Spacer(1, 20))
-    
-    return elements
-
-def _crear_informacion_reporte(encabezado_data, styles):
-    """Crear sección de información del reporte"""
-    elements = []
-    
-    elements.append(Paragraph("INFORMACIÓN DEL REPORTE", styles['TituloSeccion']))
-    
-    # Información básica
-    info_data = [
-        ['Tipo de Reporte:', encabezado_data.get('categoria', 'N/A')],
-        ['Período:', encabezado_data.get('periodo', 'N/A')],
-        ['Generado por:', encabezado_data.get('usuario', 'Sistema')],
-        ['Fecha de Generación:', datetime.now().strftime('%d/%m/%Y %H:%M:%S')]
-    ]
-    
-    if encabezado_data.get('fecha_inicio') and encabezado_data.get('fecha_fin'):
-        info_data.extend([
-            ['Fecha Inicio:', encabezado_data.get('fecha_inicio')],
-            ['Fecha Fin:', encabezado_data.get('fecha_fin')]
-        ])
-    
-    # Crear tabla de información
-    info_table = Table(info_data, colWidths=[2*inch, 3*inch])
-    info_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA'))
-    ]))
-    
-    elements.append(info_table)
-    elements.append(Spacer(1, 20))
-    
-    return elements
+# Funciones auxiliares para PDF (optimizadas con utilidades centralizadas)
 
 def _crear_tabla_resumen_pdf(resumen, styles):
     """Crear tabla de resumen para PDF"""
@@ -839,18 +764,9 @@ def _crear_tabla_resumen_pdf(resumen, styles):
             str(item.get('total_movimientos', 0))
         ])
     
-    # Crear tabla
+    # Crear tabla con estilo estandarizado
     table = Table(data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table = aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     elements.append(Spacer(1, 20))
@@ -873,18 +789,9 @@ def _crear_tabla_detalles_pdf(detalles, styles):
             f"${detalle.get('valor_total', 0):,.2f}"
         ])
     
-    # Crear tabla
+    # Crear tabla con estilo estandarizado
     table = Table(data, colWidths=[1*inch, 1*inch, 1*inch, 2*inch, 1*inch, 1*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table = aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     if len(detalles) > 20:
@@ -909,14 +816,7 @@ def _crear_tabla_inventario_articulos_pdf(articulos, styles):
         ])
     
     table = Table(data, colWidths=[1*inch, 2*inch, 1*inch, 1*inch, 1.5*inch, 1*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table = aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     return elements
@@ -937,14 +837,7 @@ def _crear_tabla_inventario_instrumentos_pdf(instrumentos, styles):
         ])
     
     table = Table(data, colWidths=[1*inch, 2*inch, 1.5*inch, 1*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table = aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     return elements
@@ -965,14 +858,7 @@ def _crear_tabla_proveedores_pdf(proveedores, styles):
         ])
     
     table = Table(data, colWidths=[1*inch, 2*inch, 1.5*inch, 1*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table = aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     return elements
@@ -993,14 +879,7 @@ def _crear_tabla_consumos_pdf(consumos, styles):
         ])
     
     table = Table(data, colWidths=[1*inch, 2*inch, 1*inch, 1*inch, 1.5*inch])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
-    ]))
+    table = aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     return elements
