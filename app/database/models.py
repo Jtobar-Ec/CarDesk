@@ -1,9 +1,9 @@
 from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
-from . import db  # Asumiendo que tienes la instancia de SQLAlchemy importada como db
+from . import db
 
-
+# Modelo Base (para funciones comunes)
 class BaseModel(db.Model):
     __abstract__ = True
     
@@ -19,27 +19,30 @@ class BaseModel(db.Model):
         db.session.delete(self)
         db.session.commit()
 
-
+# Tablas según tu estructura
 class Usuario(UserMixin, BaseModel):
     __tablename__ = 'tb_usuario'
     
     u_username = db.Column(db.String(50), unique=True, nullable=False)
-    u_password = db.Column(db.String(255), nullable=False)  # hashed password
+    u_password = db.Column(db.String(100), nullable=False)  # Almacenará el hash
     movimientos = db.relationship('MovimientoDetalle', backref='usuario', lazy=True)
     
     def set_password(self, password):
+        """Establece la contraseña hasheada"""
         self.u_password = generate_password_hash(password)
     
     def check_password(self, password):
+        """Verifica la contraseña"""
         return check_password_hash(self.u_password, password)
     
     def get_id(self):
+        """Requerido por Flask-Login"""
         return str(self.id)
     
     @property
     def username(self):
+        """Propiedad para acceder al username más fácilmente"""
         return self.u_username
-
 
 class Persona(BaseModel):
     __tablename__ = 'tb_persona'
@@ -53,13 +56,15 @@ class Persona(BaseModel):
     pe_direccion = db.Column(db.String(200))
     pe_cargo = db.Column(db.String(50))
     pe_estado = db.Column(db.String(20), default='Activo')
-
+    
+    
     def get_nombre_completo(self):
+        """Retorna el nombre completo"""
         return self.pe_nombre
-
+    
     def get_primer_nombre(self):
+        """Retorna solo el primer nombre"""
         return self.pe_nombre.split(' ')[0] if self.pe_nombre else ''
-
 
 class Proveedor(BaseModel):
     __tablename__ = 'tb_proveedores'
@@ -73,7 +78,6 @@ class Proveedor(BaseModel):
     p_estado = db.Column(db.String(20), default='Activo')  # Activo, Inactivo
     entradas = db.relationship('Entrada', backref='proveedor', lazy=True)
 
-
 class Item(BaseModel):
     __tablename__ = 'tb_item'
     
@@ -84,11 +88,11 @@ class Item(BaseModel):
     i_vUnitario = db.Column(db.Numeric(10, 2), default=0.0)
     i_vTotal = db.Column(db.Numeric(10, 2), default=0.0)
     
+    # Relación polimórfica
     instrumento = db.relationship('Instrumento', backref='item', uselist=False)
     articulo = db.relationship('Articulo', backref='item', uselist=False)
     movimientos = db.relationship('MovimientoDetalle', backref='item', lazy=True)
     stock = db.relationship('Stock', backref='item', uselist=False)
-
 
 class Instrumento(db.Model):
     __tablename__ = 'tb_instrumento'
@@ -109,7 +113,6 @@ class Instrumento(db.Model):
         db.session.delete(self)
         db.session.commit()
 
-
 class Articulo(db.Model):
     __tablename__ = 'tb_articulo'
     
@@ -128,14 +131,12 @@ class Articulo(db.Model):
         db.session.delete(self)
         db.session.commit()
 
-
 class Stock(BaseModel):
     __tablename__ = 'tb_stock'
     
     s_cantidad = db.Column(db.Integer, default=0)
     s_ultUpdt = db.Column(db.DateTime, default=datetime.utcnow)
     i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), nullable=False)
-
 
 class Consumo(BaseModel):
     __tablename__ = 'tb_consumo'
@@ -155,16 +156,19 @@ class Consumo(BaseModel):
     i_id = db.Column(db.Integer, db.ForeignKey('tb_item.id'), nullable=False)
     u_id = db.Column(db.Integer, db.ForeignKey('tb_usuario.id'), nullable=False)
     
+    # Relaciones
     persona = db.relationship('Persona', backref='consumos')
     item = db.relationship('Item', backref='consumos')
     usuario = db.relationship('Usuario', backref='consumos_usuario')
     
     @property
     def c_id(self):
+        """Alias para compatibilidad con templates"""
         return self.id
     
     @property
     def puede_editar_por_tiempo(self):
+        """Verifica si la asignación puede editarse (dentro de 48 horas)"""
         from datetime import datetime, timedelta
         if not self.created_at:
             return False
@@ -174,6 +178,7 @@ class Consumo(BaseModel):
     
     @property
     def tiempo_restante_edicion(self):
+        """Retorna el tiempo restante para poder editar"""
         from datetime import datetime, timedelta
         if not self.created_at:
             return None
@@ -189,7 +194,6 @@ class Consumo(BaseModel):
         
         return f"{horas}h {minutos}m"
 
-
 class Entrada(BaseModel):
     __tablename__ = 'tb_entrada'
     
@@ -200,7 +204,6 @@ class Entrada(BaseModel):
     p_id = db.Column(db.Integer, db.ForeignKey('tb_proveedores.id'), nullable=False)
     movimientos = db.relationship('MovimientoDetalle', backref='entrada', lazy=True)
 
-
 class MovimientoDetalle(BaseModel):
     __tablename__ = 'tb_movimiento_detalle'
     
@@ -210,6 +213,7 @@ class MovimientoDetalle(BaseModel):
     m_valorUnitario = db.Column(db.Numeric(10, 2), nullable=False)
     m_valorTotal = db.Column(db.Numeric(10, 2), nullable=False)
     m_observaciones = db.Column(db.String(200))
+    # Campos para auditoría mejorada
     m_stock_anterior = db.Column(db.Integer)  # Stock antes del movimiento
     m_stock_actual = db.Column(db.Integer)    # Stock después del movimiento
     m_valor_anterior = db.Column(db.Numeric(10, 2))  # Valor unitario anterior
