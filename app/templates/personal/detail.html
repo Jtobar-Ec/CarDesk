@@ -102,11 +102,15 @@
                                     <td>{{ consumo.c_cantidad or '-' }}</td>
                                     <td>
                                         {% if consumo.c_estado == 'Asignado' %}
-                                            <span class="badge badge-warning">{{ consumo.c_estado }}</span>
-                                        {% elif consumo.c_estado == 'Devuelto' %}
                                             <span class="badge badge-success">{{ consumo.c_estado }}</span>
-                                        {% else %}
+                                        {% elif consumo.c_estado == 'Devuelto' %}
                                             <span class="badge badge-secondary">{{ consumo.c_estado }}</span>
+                                        {% elif consumo.c_estado == 'Perdido' %}
+                                            <span class="badge badge-danger">{{ consumo.c_estado }}</span>
+                                        {% elif consumo.c_estado == 'Finalizado' %}
+                                            <span class="badge badge-primary">{{ consumo.c_estado }}</span>
+                                        {% else %}
+                                            <span class="badge badge-warning">{{ consumo.c_estado }}</span>
                                         {% endif %}
                                     </td>
                                     <td>{{ consumo.c_observaciones or '-' }}</td>
