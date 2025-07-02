@@ -81,6 +81,55 @@ def crear_estilos_excel():
                              top=Side(style='thin'), bottom=Side(style='thin'))
     }
 
+def crear_tabla_detallada_excel(ws, headers, data, start_row, titulo_seccion=None):
+    """
+    Crear tabla detallada con formato profesional en Excel
+    
+    Args:
+        ws: Worksheet de openpyxl
+        headers: Lista de encabezados de columna
+        data: Lista de listas con los datos
+        start_row: Fila inicial
+        titulo_seccion: Título opcional de la sección
+    
+    Returns:
+        int: Siguiente fila disponible
+    """
+    estilos = crear_estilos_excel()
+    current_row = start_row
+    
+    # Agregar título de sección si se proporciona
+    if titulo_seccion:
+        ws[f'A{current_row}'] = titulo_seccion
+        ws[f'A{current_row}'].font = Font(name='Calibri', size=14, bold=True, color="2E5984")
+        ws.merge_cells(f'A{current_row}:{chr(64 + len(headers))}{current_row}')
+        current_row += 2
+    
+    # Crear encabezados
+    for col, header in enumerate(headers, 1):
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
+    
+    # Agregar datos con formato alternado
+    for row_idx, row_data in enumerate(data):
+        for col, value in enumerate(row_data, 1):
+            cell = ws.cell(row=current_row, column=col, value=value)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+            cell.alignment = estilos['data_alignment']
+            
+            # Fondo alternado para mejor legibilidad
+            if row_idx % 2 == 0:
+                cell.fill = PatternFill(start_color="F8F9FA", end_color="F8F9FA", fill_type="solid")
+        current_row += 1
+    
+    current_row += 2  # Espacio después de la tabla
+    return current_row
+
 def crear_cabecera_pdf(titulo_reporte):
     """
     Crea cabecera institucional estandarizada para PDF
@@ -218,3 +267,89 @@ def ajustar_columnas_excel(ws):
         if column_letter:
             adjusted_width = min(max_length + 2, 50) if max_length > 0 else 15
             ws.column_dimensions[column_letter].width = adjusted_width
+
+def crear_tabla_detallada_pdf(headers, data, titulo_seccion=None, col_widths=None):
+    """
+    Crear tabla detallada con formato profesional en PDF
+    
+    Args:
+        headers: Lista de encabezados de columna
+        data: Lista de listas con los datos
+        titulo_seccion: Título opcional de la sección
+        col_widths: Anchos de columna personalizados
+    
+    Returns:
+        list: Lista de elementos para agregar al PDF
+    """
+    from reportlab.lib.styles import getSampleStyleSheet
+    
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Agregar título de sección si se proporciona
+    if titulo_seccion:
+        title_style = ParagraphStyle(
+            'TituloSeccionDetallada',
+            parent=styles['Heading2'],
+            fontSize=14,
+            fontName='Helvetica-Bold',
+            textColor=colors.HexColor('#2E5984'),
+            spaceBefore=20,
+            spaceAfter=12
+        )
+        elements.append(Paragraph(titulo_seccion, title_style))
+    
+    # Preparar datos de la tabla
+    table_data = [headers] + data
+    
+    # Crear tabla con anchos automáticos si no se especifican
+    if not col_widths:
+        col_widths = [1.2*inch] * len(headers)
+    
+    table = Table(table_data, colWidths=col_widths)
+    
+    # Aplicar estilo detallado
+    table.setStyle(TableStyle([
+        # Encabezado
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        
+        # Datos con fondo alternado
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        
+        # Filas alternadas para mejor legibilidad
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+    ]))
+    
+    elements.append(table)
+    elements.append(Spacer(1, 15))
+    
+    return elements
+
+def formatear_valor_moneda(valor):
+    """Formatear valor como moneda"""
+    try:
+        return f"${float(valor):,.2f}"
+    except (ValueError, TypeError):
+        return "$0.00"
+
+def formatear_fecha(fecha):
+    """Formatear fecha para mostrar"""
+    if hasattr(fecha, 'strftime'):
+        return fecha.strftime('%d/%m/%Y')
+    return str(fecha) if fecha else 'N/A'
+
+def truncar_texto(texto, max_length=30):
+    """Truncar texto para mejor visualización"""
+    if not texto:
+        return 'N/A'
+    texto_str = str(texto)
+    return texto_str[:max_length] + '...' if len(texto_str) > max_length else texto_str

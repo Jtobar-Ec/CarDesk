@@ -15,7 +15,9 @@ from reportlab.lib.units import inch
 from datetime import datetime
 from app.utils.export_utils import (
     crear_cabecera_excel, crear_estilos_excel, crear_cabecera_pdf,
-    crear_estilos_pdf, aplicar_estilo_tabla_pdf, ajustar_columnas_excel
+    crear_estilos_pdf, aplicar_estilo_tabla_pdf, ajustar_columnas_excel,
+    crear_tabla_detallada_excel, crear_tabla_detallada_pdf,
+    formatear_valor_moneda, formatear_fecha, truncar_texto
 )
 
 bp = Blueprint('articulos', __name__)
@@ -91,61 +93,89 @@ def listar_articulos():
                          proveedores=proveedores)
 
 def _exportar_excel(articulos):
-    """Exporta artículos a Excel con cabecera institucional"""
+    """Exporta artículos a Excel con formato detallado y profesional"""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Artículos"
+    ws.title = "Artículos Detallado"
     
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
     # Crear cabecera institucional
-    current_row = crear_cabecera_excel(ws, "Reporte de Artículos")
+    current_row = crear_cabecera_excel(ws, "Reporte Detallado de Artículos")
     
-    # Obtener estilos
-    estilos = crear_estilos_excel()
+    # Preparar datos detallados con estadísticas
+    headers = [
+        'Código', 'Nombre del Artículo', 'Stock Actual', 'Valor Unitario', 'Valor Total',
+        'Stock Mínimo', 'Stock Máximo', 'Estado de Stock', 'Cuenta Contable',
+        'Fecha Creación', 'Diferencia vs Stock Min', 'Rotación Sugerida'
+    ]
     
-    # Encabezados de datos
-    headers = ['Código', 'Nombre', 'Stock Actual', 'Valor Unitario', 'Valor Total',
-               'Stock Mínimo', 'Stock Máximo', 'Estado', 'Cuenta Contable', 'Fecha Creación']
+    data = []
+    total_valor = 0
+    articulos_criticos = 0
+    articulos_bajos = 0
     
-    # Escribir encabezados
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
-    
-    # Escribir datos
     for articulo, item in articulos:
-        # Determinar estado
+        # Determinar estado detallado
         if item.i_cantidad < articulo.a_stockMin:
-            estado = "Crítico"
+            estado = "CRÍTICO"
+            articulos_criticos += 1
         elif item.i_cantidad <= (articulo.a_stockMin * 1.2):
-            estado = "Bajo"
+            estado = "BAJO"
+            articulos_bajos += 1
         else:
-            estado = "Normal"
+            estado = "NORMAL"
         
-        ws.cell(row=current_row, column=1, value=item.i_codigo)
-        ws.cell(row=current_row, column=2, value=item.i_nombre)
-        ws.cell(row=current_row, column=3, value=item.i_cantidad)
-        ws.cell(row=current_row, column=4, value=float(item.i_vUnitario))
-        ws.cell(row=current_row, column=5, value=float(item.i_vTotal))
-        ws.cell(row=current_row, column=6, value=articulo.a_stockMin)
-        ws.cell(row=current_row, column=7, value=articulo.a_stockMax)
-        ws.cell(row=current_row, column=8, value=estado)
-        ws.cell(row=current_row, column=9, value=articulo.a_c_contable)
-        ws.cell(row=current_row, column=10, value=item.created_at.strftime('%Y-%m-%d'))
+        # Calcular diferencia con stock mínimo
+        diferencia = item.i_cantidad - articulo.a_stockMin
         
-        # Aplicar estilos a los datos
-        for col in range(1, 11):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
+        # Sugerir rotación
+        if diferencia < 0:
+            rotacion = "URGENTE - Reabastecer"
+        elif diferencia <= 5:
+            rotacion = "Próximo a reabastecer"
+        else:
+            rotacion = "Stock suficiente"
         
-        current_row += 1
+        total_valor += float(item.i_vTotal)
+        
+        data.append([
+            item.i_codigo,
+            item.i_nombre,
+            item.i_cantidad,
+            formatear_valor_moneda(item.i_vUnitario),
+            formatear_valor_moneda(item.i_vTotal),
+            articulo.a_stockMin,
+            articulo.a_stockMax,
+            estado,
+            articulo.a_c_contable or 'N/A',
+            formatear_fecha(item.created_at),
+            diferencia,
+            rotacion
+        ])
+    
+    # Crear tabla detallada
+    current_row = crear_tabla_detallada_excel(ws, headers, data, current_row, "INVENTARIO DETALLADO DE ARTÍCULOS")
+    
+    # Agregar resumen estadístico completo
+    current_row += 2
+    ws[f'A{current_row}'] = "ANÁLISIS ESTADÍSTICO DEL INVENTARIO"
+    ws[f'A{current_row}'].font = Font(name='Calibri', size=14, bold=True, color="2E5984")
+    ws.merge_cells(f'A{current_row}:F{current_row}')
+    current_row += 2
+    
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total de Artículos', len(articulos), '100%', 'Inventario completo'],
+        ['Artículos en Estado Crítico', articulos_criticos, f"{(articulos_criticos/len(articulos)*100):.1f}%" if articulos else "0%", 'Requieren atención inmediata'],
+        ['Artículos con Stock Bajo', articulos_bajos, f"{(articulos_bajos/len(articulos)*100):.1f}%" if articulos else "0%", 'Próximos a reabastecimiento'],
+        ['Artículos con Stock Normal', len(articulos)-articulos_criticos-articulos_bajos, f"{((len(articulos)-articulos_criticos-articulos_bajos)/len(articulos)*100):.1f}%" if articulos else "0%", 'Stock adecuado'],
+        ['Valor Total del Inventario', formatear_valor_moneda(total_valor), '100%', 'Valor total en stock'],
+        ['Promedio Valor por Artículo', formatear_valor_moneda(total_valor/len(articulos)) if articulos else "$0.00", 'N/A', 'Valor promedio unitario']
+    ]
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row)
     
     # Ajustar ancho de columnas
     ajustar_columnas_excel(ws)
@@ -157,12 +187,12 @@ def _exportar_excel(articulos):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Articulos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Articulos_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_pdf(articulos):
-    """Exporta artículos a PDF con cabecera institucional"""
+    """Exporta artículos a PDF con formato detallado y profesional"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
@@ -171,18 +201,67 @@ def _exportar_pdf(articulos):
     elements = []
     
     # Crear cabecera institucional
-    elements.extend(crear_cabecera_pdf("Reporte de Artículos"))
+    elements.extend(crear_cabecera_pdf("Reporte Detallado de Artículos"))
     
-    # Obtener estilos
-    styles = crear_estilos_pdf()
+    # Calcular estadísticas
+    total_valor = sum(float(item.i_vTotal) for _, item in articulos)
+    articulos_criticos = sum(1 for articulo, item in articulos if item.i_cantidad < articulo.a_stockMin)
+    articulos_bajos = sum(1 for articulo, item in articulos if articulo.a_stockMin <= item.i_cantidad <= (articulo.a_stockMin * 1.2))
     
-    # Título de la sección de datos
-    elements.append(Paragraph("LISTADO DE ARTÍCULOS", styles['TituloSeccion']))
-    elements.append(Paragraph(f"Total de registros: {len(articulos)}", styles['Normal']))
-    elements.append(Spacer(1, 12))
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Cantidad', 'Porcentaje', 'Valor']
+    resumen_data = [
+        ['Total Artículos', str(len(articulos)), '100%', formatear_valor_moneda(total_valor)],
+        ['Estado Crítico', str(articulos_criticos), f"{(articulos_criticos/len(articulos)*100):.1f}%" if articulos else "0%", 'Requiere atención'],
+        ['Stock Bajo', str(articulos_bajos), f"{(articulos_bajos/len(articulos)*100):.1f}%" if articulos else "0%", 'Próximo reabastecimiento'],
+        ['Stock Normal', str(len(articulos)-articulos_criticos-articulos_bajos), f"{((len(articulos)-articulos_criticos-articulos_bajos)/len(articulos)*100):.1f}%" if articulos else "0%", 'Stock adecuado']
+    ]
     
-    # Datos de la tabla
-    data = [['Código', 'Nombre', 'Stock', 'Valor Unit.', 'Valor Total', 'Stock Min/Max', 'Estado', 'Cuenta']]
+    elements.extend(crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "RESUMEN ESTADÍSTICO DEL INVENTARIO",
+        [2*inch, 1*inch, 1*inch, 1.5*inch]
+    ))
+    
+    # Datos detallados de la tabla
+    data_headers = ['Código', 'Nombre', 'Stock', 'V.Unit', 'V.Total', 'Min/Max', 'Estado']
+    data = []
+    
+    for articulo, item in articulos:
+        # Determinar estado
+        if item.i_cantidad < articulo.a_stockMin:
+            estado = "CRÍTICO"
+        elif item.i_cantidad <= (articulo.a_stockMin * 1.2):
+            estado = "BAJO"
+        else:
+            estado = "NORMAL"
+        
+        data.append([
+            item.i_codigo,
+            truncar_texto(item.i_nombre, 20),
+            str(item.i_cantidad),
+            formatear_valor_moneda(item.i_vUnitario),
+            formatear_valor_moneda(item.i_vTotal),
+            f"{articulo.a_stockMin}/{articulo.a_stockMax}",
+            estado
+        ])
+    
+    # Crear tabla detallada de artículos
+    elements.extend(crear_tabla_detallada_pdf(
+        data_headers, data,
+        "INVENTARIO DETALLADO DE ARTÍCULOS",
+        [0.8*inch, 2*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.8*inch]
+    ))
+    
+    # Construir PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    response = make_response(buffer.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Articulos_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    
+    return response
     
     for articulo, item in articulos:
         # Determinar estado
