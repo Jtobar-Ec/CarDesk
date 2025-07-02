@@ -15,7 +15,9 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from app.utils.export_utils import (
     crear_cabecera_excel, crear_estilos_excel, crear_cabecera_pdf,
-    crear_estilos_pdf, aplicar_estilo_tabla_pdf, ajustar_columnas_excel
+    crear_estilos_pdf, aplicar_estilo_tabla_pdf, ajustar_columnas_excel,
+    crear_tabla_detallada_excel, crear_tabla_detallada_pdf,
+    formatear_valor_moneda, formatear_fecha, truncar_texto
 )
 
 bp = Blueprint('personal', __name__)
@@ -303,50 +305,119 @@ def api_personal_activo():
         }), 500
 
 def _exportar_personal_excel(personal):
-    """Exporta personal a Excel con cabecera institucional"""
+    """Exporta personal a Excel con formato detallado y análisis estadístico"""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Personal"
+    ws.title = "Personal Detallado"
     
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
     # Crear cabecera institucional
-    current_row = crear_cabecera_excel(ws, "Reporte de Personal")
+    current_row = crear_cabecera_excel(ws, "Reporte Detallado de Personal")
     
-    # Obtener estilos
-    estilos = crear_estilos_excel()
+    # Preparar datos detallados con estadísticas
+    headers = [
+        'Código', 'Nombre Completo', 'Cédula de Identidad', 'Teléfono',
+        'Correo Electrónico', 'Dirección', 'Cargo', 'Estado',
+        'Fecha Registro', 'Antigüedad (días)', 'Perfil Completo'
+    ]
     
-    # Encabezados de datos
-    headers = ['Código', 'Nombre', 'CI', 'Teléfono', 'Correo', 'Dirección', 'Cargo', 'Estado']
+    data = []
+    personal_por_cargo = {}
+    personal_por_estado = {}
+    total_activos = 0
+    total_inactivos = 0
     
-    # Escribir encabezados
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
-    
-    # Escribir datos
     for persona in personal:
-        ws.cell(row=current_row, column=1, value=persona.pe_codigo or '')
-        ws.cell(row=current_row, column=2, value=persona.pe_nombre or '')
-        ws.cell(row=current_row, column=3, value=persona.pe_ci or '')
-        ws.cell(row=current_row, column=4, value=persona.pe_telefono or '')
-        ws.cell(row=current_row, column=5, value=persona.pe_correo or '')
-        ws.cell(row=current_row, column=6, value=persona.pe_direccion or '')
-        ws.cell(row=current_row, column=7, value=persona.pe_cargo or '')
-        ws.cell(row=current_row, column=8, value=persona.pe_estado or '')
+        # Calcular antigüedad
+        if hasattr(persona, 'created_at') and persona.created_at:
+            fecha_registro = persona.created_at
+            antiguedad = (datetime.now().date() - fecha_registro.date()).days if isinstance(fecha_registro, datetime) else (datetime.now().date() - fecha_registro).days
+        else:
+            fecha_registro = None
+            antiguedad = 0
         
-        # Aplicar estilos a los datos
-        for col in range(1, 9):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
+        # Determinar si el perfil está completo
+        campos_requeridos = [persona.pe_nombre, persona.pe_ci, persona.pe_telefono, persona.pe_correo, persona.pe_cargo]
+        perfil_completo = "Completo" if all(campo for campo in campos_requeridos) else "Incompleto"
         
-        current_row += 1
+        # Estadísticas
+        cargo = persona.pe_cargo or 'Sin cargo'
+        estado = persona.pe_estado or 'Sin estado'
+        
+        personal_por_cargo[cargo] = personal_por_cargo.get(cargo, 0) + 1
+        personal_por_estado[estado] = personal_por_estado.get(estado, 0) + 1
+        
+        if estado.lower() == 'activo':
+            total_activos += 1
+        else:
+            total_inactivos += 1
+        
+        data.append([
+            persona.pe_codigo or 'N/A',
+            f"{persona.pe_nombre or ''} {persona.pe_apellido or ''}".strip(),
+            persona.pe_ci or 'N/A',
+            persona.pe_telefono or 'N/A',
+            persona.pe_correo or 'N/A',
+            truncar_texto(persona.pe_direccion or 'N/A', 30),
+            cargo,
+            estado,
+            formatear_fecha(fecha_registro) if fecha_registro else 'N/A',
+            antiguedad,
+            perfil_completo
+        ])
+    
+    # Crear tabla detallada
+    current_row = crear_tabla_detallada_excel(ws, headers, data, current_row, "DIRECTORIO DETALLADO DE PERSONAL")
+    
+    # Agregar análisis estadístico completo
+    current_row += 2
+    ws[f'A{current_row}'] = "ANÁLISIS ESTADÍSTICO DEL PERSONAL"
+    ws[f'A{current_row}'].font = Font(name='Calibri', size=14, bold=True, color="2E5984")
+    ws.merge_cells(f'A{current_row}:F{current_row}')
+    current_row += 2
+    
+    resumen_headers = ['Métrica', 'Cantidad', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total de Personal', len(personal), '100%', 'Personal registrado en el sistema'],
+        ['Personal Activo', total_activos, f"{(total_activos/len(personal)*100):.1f}%" if personal else "0%", 'Personal en estado activo'],
+        ['Personal Inactivo', total_inactivos, f"{(total_inactivos/len(personal)*100):.1f}%" if personal else "0%", 'Personal en estado inactivo'],
+        ['Perfiles Completos', sum(1 for row in data if row[10] == 'Completo'), f"{(sum(1 for row in data if row[10] == 'Completo')/len(personal)*100):.1f}%" if personal else "0%", 'Personal con información completa'],
+        ['Perfiles Incompletos', sum(1 for row in data if row[10] == 'Incompleto'), f"{(sum(1 for row in data if row[10] == 'Incompleto')/len(personal)*100):.1f}%" if personal else "0%", 'Personal con información faltante']
+    ]
+    
+    # Agregar desglose por cargo
+    for cargo, cantidad in personal_por_cargo.items():
+        porcentaje = f"{(cantidad/len(personal)*100):.1f}%" if personal else "0%"
+        resumen_data.append([f'Personal en "{cargo}"', cantidad, porcentaje, f'Personas con cargo: {cargo}'])
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row)
+    
+    # Agregar ranking de cargos más comunes
+    if personal_por_cargo:
+        current_row += 2
+        ws[f'A{current_row}'] = "DISTRIBUCIÓN POR CARGOS"
+        ws[f'A{current_row}'].font = Font(name='Calibri', size=12, bold=True, color="2E5984")
+        ws.merge_cells(f'A{current_row}:D{current_row}')
+        current_row += 2
+        
+        cargo_headers = ['Cargo', 'Cantidad de Personal', 'Porcentaje', 'Observaciones']
+        cargo_data = []
+        
+        # Ordenar por cantidad de personal
+        top_cargos = sorted(personal_por_cargo.items(), key=lambda x: x[1], reverse=True)
+        
+        for cargo, cantidad in top_cargos:
+            porcentaje = f"{(cantidad/len(personal)*100):.1f}%" if personal else "0%"
+            cargo_data.append([
+                cargo,
+                cantidad,
+                porcentaje,
+                'Cargo principal' if cantidad == max(personal_por_cargo.values()) else 'Cargo secundario'
+            ])
+        
+        current_row = crear_tabla_detallada_excel(ws, cargo_headers, cargo_data, current_row)
     
     # Ajustar ancho de columnas
     ajustar_columnas_excel(ws)
@@ -358,12 +429,12 @@ def _exportar_personal_excel(personal):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Personal_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Personal_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_personal_pdf(personal):
-    """Exporta personal a PDF con cabecera institucional"""
+    """Exporta personal a PDF con formato detallado y análisis estadístico"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
@@ -372,37 +443,60 @@ def _exportar_personal_pdf(personal):
     elements = []
     
     # Crear cabecera institucional
-    elements.extend(crear_cabecera_pdf("Reporte de Personal"))
+    elements.extend(crear_cabecera_pdf("Reporte Detallado de Personal"))
     
-    # Obtener estilos
-    styles = crear_estilos_pdf()
+    # Calcular estadísticas
+    total_activos = sum(1 for p in personal if p.pe_estado and p.pe_estado.lower() == 'activo')
+    total_inactivos = len(personal) - total_activos
+    personal_por_cargo = {}
+    perfiles_completos = 0
     
-    # Título de la sección de datos
-    elements.append(Paragraph("LISTADO DE PERSONAL", styles['TituloSeccion']))
-    elements.append(Paragraph(f"Total de registros: {len(personal)}", styles['Normal']))
-    elements.append(Spacer(1, 12))
+    for persona in personal:
+        cargo = persona.pe_cargo or 'Sin cargo'
+        personal_por_cargo[cargo] = personal_por_cargo.get(cargo, 0) + 1
+        
+        # Verificar perfil completo
+        campos_requeridos = [persona.pe_nombre, persona.pe_ci, persona.pe_telefono, persona.pe_correo, persona.pe_cargo]
+        if all(campo for campo in campos_requeridos):
+            perfiles_completos += 1
     
-    # Datos de la tabla
-    data = [['Código', 'Nombre', 'CI', 'Teléfono', 'Correo', 'Cargo', 'Estado']]
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Cantidad', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total Personal', str(len(personal)), '100%', 'Personal registrado'],
+        ['Personal Activo', str(total_activos), f"{(total_activos/len(personal)*100):.1f}%" if personal else "0%", 'En estado activo'],
+        ['Personal Inactivo', str(total_inactivos), f"{(total_inactivos/len(personal)*100):.1f}%" if personal else "0%", 'En estado inactivo'],
+        ['Perfiles Completos', str(perfiles_completos), f"{(perfiles_completos/len(personal)*100):.1f}%" if personal else "0%", 'Información completa'],
+        ['Cargos Diferentes', str(len(personal_por_cargo)), 'N/A', 'Diversidad de cargos']
+    ]
+    
+    elements.extend(crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "RESUMEN ESTADÍSTICO DEL PERSONAL",
+        [1.5*inch, 1*inch, 1*inch, 2*inch]
+    ))
+    
+    # Datos detallados de la tabla
+    data_headers = ['Código', 'Nombre', 'CI', 'Teléfono', 'Correo', 'Cargo', 'Estado']
+    data = []
     
     for persona in personal:
         data.append([
-            persona.pe_codigo or '',
-            (persona.pe_nombre or '')[:25] + '...' if persona.pe_nombre and len(persona.pe_nombre) > 25 else (persona.pe_nombre or ''),
-            persona.pe_ci or '',
-            persona.pe_telefono or '',
-            (persona.pe_correo or '')[:20] + '...' if persona.pe_correo and len(persona.pe_correo) > 20 else (persona.pe_correo or ''),
-            persona.pe_cargo or '',
-            persona.pe_estado or ''
+            persona.pe_codigo or 'N/A',
+            truncar_texto(f"{persona.pe_nombre or ''} {persona.pe_apellido or ''}".strip(), 20),
+            persona.pe_ci or 'N/A',
+            persona.pe_telefono or 'N/A',
+            truncar_texto(persona.pe_correo or 'N/A', 18),
+            truncar_texto(persona.pe_cargo or 'Sin cargo', 15),
+            persona.pe_estado or 'N/A'
         ])
     
-    # Crear tabla
-    table = Table(data, colWidths=[0.8*inch, 2.0*inch, 0.8*inch, 1.0*inch, 1.5*inch, 1.0*inch, 0.8*inch])
-    
-    # Aplicar estilo estandarizado
-    aplicar_estilo_tabla_pdf(table)
-    
-    elements.append(table)
+    # Crear tabla detallada de personal
+    elements.extend(crear_tabla_detallada_pdf(
+        data_headers, data,
+        "DIRECTORIO DETALLADO DE PERSONAL",
+        [0.8*inch, 1.8*inch, 0.8*inch, 1*inch, 1.5*inch, 1.2*inch, 0.8*inch]
+    ))
     
     # Construir PDF
     doc.build(elements)
@@ -410,12 +504,12 @@ def _exportar_personal_pdf(personal):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Personal_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Personal_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
 def _exportar_detalle_personal_excel(persona, consumos):
-    """Exporta detalle de personal a Excel con cabecera institucional"""
+    """Exporta detalle de personal a Excel con formato detallado y análisis estadístico"""
     wb = Workbook()
     ws = wb.active
     ws.title = f"Detalle_{persona.pe_nombre}"
@@ -426,68 +520,99 @@ def _exportar_detalle_personal_excel(persona, consumos):
     # Crear cabecera institucional
     current_row = crear_cabecera_excel(ws, f"Detalle de Personal - {persona.pe_nombre}")
     
-    # Obtener estilos
-    estilos = crear_estilos_excel()
-    
-    # Información personal
-    info_headers = ['Campo', 'Valor']
-    for col, header in enumerate(info_headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
-    
-    # Datos personales
+    # Información personal detallada
+    info_headers = ['Campo', 'Valor', 'Estado', 'Observaciones']
     info_data = [
-        ['Código', persona.pe_codigo or ''],
-        ['Nombre', persona.pe_nombre or ''],
-        ['CI', persona.pe_ci or ''],
-        ['Teléfono', persona.pe_telefono or ''],
-        ['Correo', persona.pe_correo or ''],
-        ['Dirección', persona.pe_direccion or ''],
-        ['Cargo', persona.pe_cargo or ''],
-        ['Estado', persona.pe_estado or '']
+        ['Código', persona.pe_codigo or 'N/A', 'Asignado' if persona.pe_codigo else 'Sin asignar', 'Identificador único'],
+        ['Nombre Completo', f"{persona.pe_nombre or ''} {persona.pe_apellido or ''}".strip(), 'Completo' if persona.pe_nombre else 'Incompleto', 'Nombre y apellido'],
+        ['Cédula de Identidad', persona.pe_ci or 'N/A', 'Registrada' if persona.pe_ci else 'Faltante', 'Documento de identificación'],
+        ['Teléfono', persona.pe_telefono or 'N/A', 'Registrado' if persona.pe_telefono else 'Faltante', 'Contacto telefónico'],
+        ['Correo Electrónico', persona.pe_correo or 'N/A', 'Registrado' if persona.pe_correo else 'Faltante', 'Contacto por email'],
+        ['Dirección', truncar_texto(persona.pe_direccion or 'N/A', 40), 'Registrada' if persona.pe_direccion else 'Faltante', 'Dirección de residencia'],
+        ['Cargo', persona.pe_cargo or 'N/A', 'Asignado' if persona.pe_cargo else 'Sin asignar', 'Posición en la institución'],
+        ['Estado', persona.pe_estado or 'N/A', persona.pe_estado or 'Sin definir', 'Estado actual del personal']
     ]
     
-    for campo, valor in info_data:
-        ws.cell(row=current_row, column=1, value=campo).font = estilos['data_font']
-        ws.cell(row=current_row, column=2, value=valor).font = estilos['data_font']
-        current_row += 1
+    # Crear tabla detallada de información personal
+    current_row = crear_tabla_detallada_excel(ws, info_headers, info_data, current_row, "INFORMACIÓN PERSONAL DETALLADA")
     
-    current_row += 2  # Espacio antes de asignaciones
-    
-    # Historial de asignaciones
+    # Análisis de asignaciones si existen
     if consumos:
-        ws.cell(row=current_row, column=1, value="HISTORIAL DE ASIGNACIONES").font = estilos['header_font']
         current_row += 2
         
-        # Encabezados de asignaciones
-        headers = ['Fecha', 'Artículo', 'Cantidad', 'Estado', 'Observaciones']
-        for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = estilos['header_font']
-            cell.fill = estilos['header_fill']
-            cell.alignment = estilos['header_alignment']
-            cell.border = estilos['header_border']
-        current_row += 1
+        # Preparar datos de asignaciones con análisis
+        asig_headers = [
+            'Fecha', 'Artículo', 'Código', 'Cantidad', 'Valor Unitario', 'Valor Total',
+            'Estado', 'Días Transcurridos', 'Observaciones', 'Clasificación'
+        ]
         
-        # Datos de asignaciones
+        asig_data = []
+        valor_total_asignaciones = 0
+        asignaciones_por_estado = {}
+        cantidad_total = 0
+        
         for consumo in consumos:
-            ws.cell(row=current_row, column=1, value=consumo.c_fecha.strftime('%d/%m/%Y') if consumo.c_fecha else '')
-            ws.cell(row=current_row, column=2, value=consumo.item.i_nombre if consumo.item else '')
-            ws.cell(row=current_row, column=3, value=consumo.c_cantidad or 0)
-            ws.cell(row=current_row, column=4, value=consumo.c_estado or '')
-            ws.cell(row=current_row, column=5, value=consumo.c_observaciones or '')
+            # Calcular días transcurridos
+            if consumo.c_fecha:
+                if isinstance(consumo.c_fecha, date):
+                    fecha_asignacion = consumo.c_fecha
+                else:
+                    fecha_asignacion = consumo.c_fecha.date()
+                dias_transcurridos = (datetime.now().date() - fecha_asignacion).days
+            else:
+                dias_transcurridos = 0
             
-            # Aplicar estilos a los datos
-            for col in range(1, 6):
-                cell = ws.cell(row=current_row, column=col)
-                cell.font = estilos['data_font']
-                cell.border = estilos['data_border']
+            # Clasificar asignación
+            if dias_transcurridos > 365:
+                clasificacion = "Asignación antigua"
+            elif dias_transcurridos > 90:
+                clasificacion = "Asignación reciente"
+            else:
+                clasificacion = "Asignación nueva"
             
-            current_row += 1
+            # Estadísticas
+            valor_total_asignaciones += float(consumo.c_valorTotal) if consumo.c_valorTotal else 0
+            cantidad_total += consumo.c_cantidad or 0
+            estado = consumo.c_estado or 'Sin estado'
+            asignaciones_por_estado[estado] = asignaciones_por_estado.get(estado, 0) + 1
+            
+            asig_data.append([
+                formatear_fecha(consumo.c_fecha) if consumo.c_fecha else 'N/A',
+                consumo.item.i_nombre if consumo.item else 'N/A',
+                consumo.item.i_codigo if consumo.item else 'N/A',
+                consumo.c_cantidad or 0,
+                formatear_valor_moneda(consumo.c_valorUnitario) if consumo.c_valorUnitario else '$0.00',
+                formatear_valor_moneda(consumo.c_valorTotal) if consumo.c_valorTotal else '$0.00',
+                estado,
+                dias_transcurridos,
+                truncar_texto(consumo.c_observaciones or 'Sin observaciones', 30),
+                clasificacion
+            ])
+        
+        # Crear tabla detallada de asignaciones
+        current_row = crear_tabla_detallada_excel(ws, asig_headers, asig_data, current_row, "HISTORIAL DETALLADO DE ASIGNACIONES")
+        
+        # Análisis estadístico de asignaciones
+        current_row += 2
+        ws[f'A{current_row}'] = "ANÁLISIS DE ASIGNACIONES DEL PERSONAL"
+        ws[f'A{current_row}'].font = Font(name='Calibri', size=14, bold=True, color="2E5984")
+        ws.merge_cells(f'A{current_row}:F{current_row}')
+        current_row += 2
+        
+        analisis_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+        analisis_data = [
+            ['Total de Asignaciones', len(consumos), '100%', 'Asignaciones registradas'],
+            ['Cantidad Total Asignada', cantidad_total, 'N/A', 'Unidades totales asignadas'],
+            ['Valor Total Asignado', formatear_valor_moneda(valor_total_asignaciones), '100%', 'Valor monetario total'],
+            ['Promedio por Asignación', formatear_valor_moneda(valor_total_asignaciones/len(consumos)) if consumos else '$0.00', 'N/A', 'Valor promedio por asignación']
+        ]
+        
+        # Agregar desglose por estado
+        for estado, cantidad in asignaciones_por_estado.items():
+            porcentaje = f"{(cantidad/len(consumos)*100):.1f}%" if consumos else "0%"
+            analisis_data.append([f'Asignaciones "{estado}"', cantidad, porcentaje, f'Estado: {estado}'])
+        
+        current_row = crear_tabla_detallada_excel(ws, analisis_headers, analisis_data, current_row)
     
     # Ajustar ancho de columnas
     ajustar_columnas_excel(ws)
@@ -499,12 +624,12 @@ def _exportar_detalle_personal_excel(persona, consumos):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{persona.pe_nombre}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{persona.pe_nombre}_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_detalle_personal_pdf(persona, consumos):
-    """Exporta detalle de personal a PDF con cabecera institucional"""
+    """Exporta detalle de personal a PDF con formato detallado y análisis estadístico"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
@@ -515,61 +640,85 @@ def _exportar_detalle_personal_pdf(persona, consumos):
     # Crear cabecera institucional
     elements.extend(crear_cabecera_pdf(f"Detalle de Personal - {persona.pe_nombre}"))
     
-    # Obtener estilos
-    styles = crear_estilos_pdf()
-    
-    # Título de la sección de información
-    elements.append(Paragraph("INFORMACIÓN PERSONAL", styles['TituloSeccion']))
-    elements.append(Spacer(1, 12))
-    
-    # Información personal
+    # Información personal detallada
+    info_headers = ['Campo', 'Valor', 'Estado']
     info_data = [
-        ['Código:', persona.pe_codigo or '-'],
-        ['Nombre:', persona.pe_nombre or '-'],
-        ['CI:', persona.pe_ci or '-'],
-        ['Teléfono:', persona.pe_telefono or '-'],
-        ['Correo:', persona.pe_correo or '-'],
-        ['Dirección:', persona.pe_direccion or '-'],
-        ['Cargo:', persona.pe_cargo or '-'],
-        ['Estado:', persona.pe_estado or '-']
+        ['Código', persona.pe_codigo or 'N/A', 'Asignado' if persona.pe_codigo else 'Sin asignar'],
+        ['Nombre Completo', f"{persona.pe_nombre or ''} {persona.pe_apellido or ''}".strip(), 'Completo' if persona.pe_nombre else 'Incompleto'],
+        ['Cédula de Identidad', persona.pe_ci or 'N/A', 'Registrada' if persona.pe_ci else 'Faltante'],
+        ['Teléfono', persona.pe_telefono or 'N/A', 'Registrado' if persona.pe_telefono else 'Faltante'],
+        ['Correo Electrónico', truncar_texto(persona.pe_correo or 'N/A', 25), 'Registrado' if persona.pe_correo else 'Faltante'],
+        ['Dirección', truncar_texto(persona.pe_direccion or 'N/A', 25), 'Registrada' if persona.pe_direccion else 'Faltante'],
+        ['Cargo', persona.pe_cargo or 'N/A', 'Asignado' if persona.pe_cargo else 'Sin asignar'],
+        ['Estado', persona.pe_estado or 'N/A', persona.pe_estado or 'Sin definir']
     ]
     
-    info_table = Table(info_data, colWidths=[1.5*inch, 4*inch])
-    info_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 10),
-        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-    ]))
+    elements.extend(crear_tabla_detallada_pdf(
+        info_headers, info_data,
+        "INFORMACIÓN PERSONAL DETALLADA",
+        [1.5*inch, 2.5*inch, 1.5*inch]
+    ))
     
-    elements.append(info_table)
-    elements.append(Spacer(1, 20))
-    
-    # Historial de asignaciones
+    # Análisis de asignaciones si existen
     if consumos:
-        elements.append(Paragraph("HISTORIAL DE ASIGNACIONES", styles['TituloSeccion']))
-        elements.append(Paragraph(f"Total de asignaciones: {len(consumos)}", styles['Normal']))
-        elements.append(Spacer(1, 12))
+        # Calcular estadísticas
+        valor_total_asignaciones = sum(float(consumo.c_valorTotal) if consumo.c_valorTotal else 0 for consumo in consumos)
+        cantidad_total = sum(consumo.c_cantidad or 0 for consumo in consumos)
+        asignaciones_por_estado = {}
         
-        consumos_data = [['Fecha', 'Artículo', 'Cantidad', 'Estado', 'Observaciones']]
         for consumo in consumos:
-            consumos_data.append([
-                consumo.c_fecha.strftime('%d/%m/%Y') if consumo.c_fecha else '-',
-                (consumo.item.i_nombre if consumo.item else '-')[:30] + '...' if consumo.item and len(consumo.item.i_nombre) > 30 else (consumo.item.i_nombre if consumo.item else '-'),
+            estado = consumo.c_estado or 'Sin estado'
+            asignaciones_por_estado[estado] = asignaciones_por_estado.get(estado, 0) + 1
+        
+        # Resumen de asignaciones
+        resumen_headers = ['Métrica', 'Valor', 'Observaciones']
+        resumen_data = [
+            ['Total Asignaciones', str(len(consumos)), 'Asignaciones registradas'],
+            ['Cantidad Total', str(cantidad_total), 'Unidades asignadas'],
+            ['Valor Total', formatear_valor_moneda(valor_total_asignaciones), 'Valor monetario total'],
+            ['Promedio por Asignación', formatear_valor_moneda(valor_total_asignaciones/len(consumos)) if consumos else '$0.00', 'Valor promedio']
+        ]
+        
+        # Agregar estados
+        for estado, cantidad in asignaciones_por_estado.items():
+            porcentaje = f"({(cantidad/len(consumos)*100):.1f}%)" if consumos else "(0%)"
+            resumen_data.append([f'Estado "{estado}"', f"{cantidad} {porcentaje}", f'Asignaciones en {estado.lower()}'])
+        
+        elements.extend(crear_tabla_detallada_pdf(
+            resumen_headers, resumen_data,
+            "RESUMEN DE ASIGNACIONES",
+            [1.5*inch, 1.5*inch, 2.5*inch]
+        ))
+        
+        # Historial detallado de asignaciones
+        asig_headers = ['Fecha', 'Artículo', 'Cant.', 'Valor', 'Estado', 'Días']
+        asig_data = []
+        
+        for consumo in consumos:
+            # Calcular días transcurridos
+            if consumo.c_fecha:
+                if isinstance(consumo.c_fecha, date):
+                    fecha_asignacion = consumo.c_fecha
+                else:
+                    fecha_asignacion = consumo.c_fecha.date()
+                dias_transcurridos = (datetime.now().date() - fecha_asignacion).days
+            else:
+                dias_transcurridos = 0
+            
+            asig_data.append([
+                formatear_fecha(consumo.c_fecha) if consumo.c_fecha else 'N/A',
+                truncar_texto(consumo.item.i_nombre if consumo.item else 'N/A', 15),
                 str(consumo.c_cantidad or 0),
-                consumo.c_estado or '-',
-                (consumo.c_observaciones or '-')[:20] + '...' if consumo.c_observaciones and len(consumo.c_observaciones) > 20 else (consumo.c_observaciones or '-')
+                formatear_valor_moneda(consumo.c_valorTotal) if consumo.c_valorTotal else '$0.00',
+                consumo.c_estado or 'N/A',
+                str(dias_transcurridos)
             ])
         
-        consumos_table = Table(consumos_data, colWidths=[1*inch, 2*inch, 0.8*inch, 1*inch, 1.5*inch])
-        
-        # Aplicar estilo estandarizado
-        aplicar_estilo_tabla_pdf(consumos_table)
-        
-        elements.append(consumos_table)
+        elements.extend(crear_tabla_detallada_pdf(
+            asig_headers, asig_data,
+            "HISTORIAL DETALLADO DE ASIGNACIONES",
+            [0.8*inch, 1.5*inch, 0.5*inch, 0.8*inch, 0.8*inch, 0.5*inch]
+        ))
     
     # Construir PDF
     doc.build(elements)
@@ -577,6 +726,6 @@ def _exportar_detalle_personal_pdf(persona, consumos):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{persona.pe_nombre}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{persona.pe_nombre}_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response

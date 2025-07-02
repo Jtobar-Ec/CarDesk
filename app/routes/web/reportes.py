@@ -9,7 +9,9 @@ from app.database.models import (
 from app.database import db
 from app.utils.export_utils import (
     crear_cabecera_excel, crear_estilos_excel, ajustar_columnas_excel,
-    crear_cabecera_pdf, crear_estilos_pdf, aplicar_estilo_tabla_pdf
+    crear_cabecera_pdf, crear_estilos_pdf, aplicar_estilo_tabla_pdf,
+    crear_tabla_detallada_excel, crear_tabla_detallada_pdf,
+    formatear_valor_moneda, formatear_fecha, truncar_texto
 )
 import io
 from openpyxl import Workbook
@@ -463,220 +465,410 @@ def _crear_reporte_completo(workbook, tipo_reporte, periodo, fecha_inicio, fecha
         ws.column_dimensions[chr(64 + col)].width = 15
 
 def _agregar_seccion_movimientos(ws, resultado, start_row, estilos):
-    """Agregar sección de movimientos"""
+    """Agregar sección de movimientos con formato detallado"""
     current_row = start_row
     
-    # Resumen si existe
+    # Resumen estadístico si existe
     if resultado.get('resumen'):
-        ws[f'A{current_row}'] = "RESUMEN DE MOVIMIENTOS"
-        ws[f'A{current_row}'].font = estilos['subtitle_font']
-        ws.merge_cells(f'A{current_row}:H{current_row}')
-        current_row += 2
+        # Calcular estadísticas adicionales
+        total_ingresos = sum(item.get('total_valor', 0) for item in resultado['resumen'] if item.get('tipo_movimiento') == 'Ingreso')
+        total_egresos = sum(item.get('total_valor', 0) for item in resultado['resumen'] if item.get('tipo_movimiento') == 'Egreso')
+        balance = total_ingresos - total_egresos
         
-        # Encabezados del resumen
-        headers_resumen = ['Tipo', 'Total Cantidad', 'Total Valor', 'Movimientos']
-        for col, header in enumerate(headers_resumen, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = estilos['header_font']
-            cell.fill = estilos['header_fill']
-            cell.alignment = estilos['header_alignment']
-            cell.border = estilos['header_border']
-        current_row += 1
+        # Datos del resumen con análisis
+        resumen_headers = ['Tipo Movimiento', 'Cantidad', 'Valor Total', 'Movimientos', 'Porcentaje', 'Observaciones']
+        resumen_data = []
         
-        # Datos del resumen
+        total_valor_general = sum(item.get('total_valor', 0) for item in resultado['resumen'])
+        
         for item in resultado['resumen']:
-            ws.cell(row=current_row, column=1, value=item.get('tipo_movimiento', ''))
-            ws.cell(row=current_row, column=2, value=item.get('total_cantidad', 0))
-            ws.cell(row=current_row, column=3, value=item.get('total_valor', 0))
-            ws.cell(row=current_row, column=4, value=item.get('total_movimientos', 0))
+            valor = item.get('total_valor', 0)
+            porcentaje = f"{(valor/total_valor_general*100):.1f}%" if total_valor_general > 0 else "0%"
+            tipo = item.get('tipo_movimiento', '')
             
-            for col in range(1, 5):
-                cell = ws.cell(row=current_row, column=col)
-                cell.font = estilos['data_font']
-                cell.border = estilos['data_border']
-            current_row += 1
+            observacion = "Flujo positivo" if tipo == 'Ingreso' else "Flujo negativo"
+            
+            resumen_data.append([
+                tipo,
+                item.get('total_cantidad', 0),
+                formatear_valor_moneda(valor),
+                item.get('total_movimientos', 0),
+                porcentaje,
+                observacion
+            ])
         
+        # Agregar fila de balance
+        resumen_data.append([
+            'BALANCE GENERAL',
+            'N/A',
+            formatear_valor_moneda(balance),
+            'N/A',
+            '100%',
+            'Positivo' if balance >= 0 else 'Negativo'
+        ])
+        
+        current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row, "ANÁLISIS DE MOVIMIENTOS")
         current_row += 2
     
-    # Detalles si existen
+    # Detalles con análisis si existen
     if resultado.get('detalles'):
-        ws[f'A{current_row}'] = "DETALLE DE MOVIMIENTOS"
-        ws[f'A{current_row}'].font = estilos['subtitle_font']
-        ws.merge_cells(f'A{current_row}:H{current_row}')
-        current_row += 2
+        # Preparar datos detallados con análisis
+        detalle_headers = [
+            'Fecha', 'Tipo', 'Código', 'Artículo', 'Cantidad', 'V. Unitario',
+            'V. Total', 'Proveedor/Persona', 'Días Transcurridos', 'Observaciones'
+        ]
         
-        # Encabezados del detalle
-        headers_detalle = ['Fecha', 'Tipo', 'Código', 'Nombre', 'Cantidad', 'V. Unitario', 'V. Total', 'Observaciones']
-        for col, header in enumerate(headers_detalle, 1):
-            cell = ws.cell(row=current_row, column=col, value=header)
-            cell.font = estilos['header_font']
-            cell.fill = estilos['header_fill']
-            cell.alignment = estilos['header_alignment']
-            cell.border = estilos['header_border']
-        current_row += 1
-        
-        # Datos del detalle
+        detalle_data = []
         for detalle in resultado['detalles']:
-            ws.cell(row=current_row, column=1, value=detalle.get('fecha', ''))
-            ws.cell(row=current_row, column=2, value=detalle.get('tipo', ''))
-            ws.cell(row=current_row, column=3, value=detalle.get('codigo_item', ''))
-            ws.cell(row=current_row, column=4, value=detalle.get('nombre_item', ''))
-            ws.cell(row=current_row, column=5, value=detalle.get('cantidad', 0))
-            ws.cell(row=current_row, column=6, value=detalle.get('valor_unitario', 0))
-            ws.cell(row=current_row, column=7, value=detalle.get('valor_total', 0))
-            ws.cell(row=current_row, column=8, value=detalle.get('observaciones', ''))
+            # Calcular días transcurridos
+            try:
+                fecha_mov = datetime.strptime(detalle.get('fecha', ''), '%Y-%m-%d').date()
+                dias_transcurridos = (datetime.now().date() - fecha_mov).days
+            except:
+                dias_transcurridos = 0
             
-            for col in range(1, 9):
-                cell = ws.cell(row=current_row, column=col)
-                cell.font = estilos['data_font']
-                cell.border = estilos['data_border']
-            current_row += 1
+            # Determinar responsable
+            responsable = detalle.get('proveedor', 'N/A') if detalle.get('tipo') == 'Ingreso' else detalle.get('persona', 'N/A')
+            
+            detalle_data.append([
+                formatear_fecha(detalle.get('fecha', '')),
+                detalle.get('tipo', ''),
+                detalle.get('codigo_item', ''),
+                truncar_texto(detalle.get('nombre_item', ''), 25),
+                detalle.get('cantidad', 0),
+                formatear_valor_moneda(detalle.get('valor_unitario', 0)),
+                formatear_valor_moneda(detalle.get('valor_total', 0)),
+                truncar_texto(responsable, 20),
+                dias_transcurridos,
+                truncar_texto(detalle.get('observaciones', 'Sin observaciones'), 25)
+            ])
+        
+        current_row = crear_tabla_detallada_excel(ws, detalle_headers, detalle_data, current_row, "DETALLE DE MOVIMIENTOS")
     
     return current_row
 
 def _agregar_seccion_inventario_articulos(ws, resultado, start_row, estilos):
-    """Agregar sección de inventario de artículos"""
+    """Agregar sección de inventario de artículos con análisis detallado"""
     current_row = start_row
+    articulos = resultado.get('articulos', [])
     
-    ws[f'A{current_row}'] = "INVENTARIO DE ARTÍCULOS"
-    ws[f'A{current_row}'].font = estilos['subtitle_font']
-    ws.merge_cells(f'A{current_row}:H{current_row}')
+    if not articulos:
+        return current_row
+    
+    # Calcular estadísticas del inventario
+    total_articulos = len(articulos)
+    valor_total_inventario = sum(art.get('valor_total', 0) for art in articulos)
+    articulos_stock_bajo = sum(1 for art in articulos if art.get('estado_stock') == 'Bajo')
+    cantidad_total = sum(art.get('cantidad', 0) for art in articulos)
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Estado', 'Observaciones']
+    resumen_data = [
+        ['Total de Artículos', total_articulos, '100%', 'Completo', 'Artículos registrados en inventario'],
+        ['Valor Total Inventario', formatear_valor_moneda(valor_total_inventario), '100%', 'Valorizado', 'Valor monetario total del inventario'],
+        ['Cantidad Total', cantidad_total, 'N/A', 'Contabilizado', 'Unidades totales en stock'],
+        ['Artículos Stock Bajo', articulos_stock_bajo, f"{(articulos_stock_bajo/total_articulos*100):.1f}%" if total_articulos > 0 else "0%", 'Crítico' if articulos_stock_bajo > 0 else 'Normal', 'Requieren reposición urgente'],
+        ['Artículos Stock Normal', total_articulos - articulos_stock_bajo, f"{((total_articulos-articulos_stock_bajo)/total_articulos*100):.1f}%" if total_articulos > 0 else "0%", 'Normal', 'Stock dentro de parámetros normales']
+    ]
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row, "ANÁLISIS DE INVENTARIO DE ARTÍCULOS")
     current_row += 2
     
-    # Encabezados
-    headers = ['Código', 'Nombre', 'Cantidad', 'Stock Mín', 'Stock Máx', 'V. Unitario', 'V. Total', 'Estado']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
+    # Detalle de artículos con análisis
+    detalle_headers = [
+        'Código', 'Nombre', 'Cantidad', 'Stock Mín', 'Stock Máx', 'V. Unitario',
+        'V. Total', 'Estado Stock', 'Rotación Sugerida', 'Prioridad'
+    ]
     
-    # Datos
-    for art in resultado.get('articulos', []):
-        ws.cell(row=current_row, column=1, value=art.get('codigo', ''))
-        ws.cell(row=current_row, column=2, value=art.get('nombre', ''))
-        ws.cell(row=current_row, column=3, value=art.get('cantidad', 0))
-        ws.cell(row=current_row, column=4, value=art.get('stock_min', 0))
-        ws.cell(row=current_row, column=5, value=art.get('stock_max', 0))
-        ws.cell(row=current_row, column=6, value=art.get('valor_unitario', 0))
-        ws.cell(row=current_row, column=7, value=art.get('valor_total', 0))
-        ws.cell(row=current_row, column=8, value=art.get('estado_stock', ''))
+    detalle_data = []
+    for art in articulos:
+        cantidad = art.get('cantidad', 0)
+        stock_min = art.get('stock_min', 0)
+        stock_max = art.get('stock_max', 0)
         
-        for col in range(1, 9):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
-        current_row += 1
+        # Determinar rotación sugerida
+        if cantidad <= stock_min:
+            rotacion = "Reposición Urgente"
+            prioridad = "Alta"
+        elif cantidad < (stock_min + stock_max) / 2:
+            rotacion = "Reposición Normal"
+            prioridad = "Media"
+        else:
+            rotacion = "Stock Suficiente"
+            prioridad = "Baja"
+        
+        detalle_data.append([
+            art.get('codigo', ''),
+            truncar_texto(art.get('nombre', ''), 30),
+            cantidad,
+            stock_min,
+            stock_max,
+            formatear_valor_moneda(art.get('valor_unitario', 0)),
+            formatear_valor_moneda(art.get('valor_total', 0)),
+            art.get('estado_stock', ''),
+            rotacion,
+            prioridad
+        ])
+    
+    current_row = crear_tabla_detallada_excel(ws, detalle_headers, detalle_data, current_row, "DETALLE DE INVENTARIO DE ARTÍCULOS")
     
     return current_row
 
 def _agregar_seccion_inventario_instrumentos(ws, resultado, start_row, estilos):
-    """Agregar sección de inventario de instrumentos"""
+    """Agregar sección de inventario de instrumentos con análisis detallado"""
     current_row = start_row
+    instrumentos = resultado.get('instrumentos', [])
     
-    ws[f'A{current_row}'] = "INVENTARIO DE INSTRUMENTOS"
-    ws[f'A{current_row}'].font = estilos['subtitle_font']
-    ws.merge_cells(f'A{current_row}:G{current_row}')
+    if not instrumentos:
+        return current_row
+    
+    # Calcular estadísticas de instrumentos
+    total_instrumentos = len(instrumentos)
+    valor_total_instrumentos = sum(inst.get('valor_unitario', 0) for inst in instrumentos)
+    
+    # Análisis por estado
+    estados_count = {}
+    marcas_count = {}
+    
+    for inst in instrumentos:
+        estado = inst.get('estado', 'Sin estado')
+        marca = inst.get('marca', 'Sin marca')
+        estados_count[estado] = estados_count.get(estado, 0) + 1
+        marcas_count[marca] = marcas_count.get(marca, 0) + 1
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total de Instrumentos', total_instrumentos, '100%', 'Instrumentos registrados en inventario'],
+        ['Valor Total', formatear_valor_moneda(valor_total_instrumentos), '100%', 'Valor monetario total de instrumentos'],
+        ['Promedio por Instrumento', formatear_valor_moneda(valor_total_instrumentos/total_instrumentos) if total_instrumentos > 0 else '$0.00', 'N/A', 'Valor promedio por instrumento']
+    ]
+    
+    # Agregar análisis por estado
+    for estado, cantidad in estados_count.items():
+        porcentaje = f"{(cantidad/total_instrumentos*100):.1f}%" if total_instrumentos > 0 else "0%"
+        resumen_data.append([f'Estado "{estado}"', cantidad, porcentaje, f'Instrumentos en estado {estado.lower()}'])
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row, "ANÁLISIS DE INVENTARIO DE INSTRUMENTOS")
     current_row += 2
     
-    # Encabezados
-    headers = ['Código', 'Nombre', 'Marca', 'Modelo', 'Serie', 'Estado', 'Valor']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
+    # Detalle de instrumentos con análisis
+    detalle_headers = [
+        'Código', 'Nombre', 'Marca', 'Modelo', 'Serie', 'Estado',
+        'Valor', 'Clasificación', 'Mantenimiento', 'Observaciones'
+    ]
     
-    # Datos
-    for inst in resultado.get('instrumentos', []):
-        ws.cell(row=current_row, column=1, value=inst.get('codigo', ''))
-        ws.cell(row=current_row, column=2, value=inst.get('nombre', ''))
-        ws.cell(row=current_row, column=3, value=inst.get('marca', ''))
-        ws.cell(row=current_row, column=4, value=inst.get('modelo', ''))
-        ws.cell(row=current_row, column=5, value=inst.get('serie', ''))
-        ws.cell(row=current_row, column=6, value=inst.get('estado', ''))
-        ws.cell(row=current_row, column=7, value=inst.get('valor_unitario', 0))
+    detalle_data = []
+    for inst in instrumentos:
+        valor = inst.get('valor_unitario', 0)
+        estado = inst.get('estado', '')
         
-        for col in range(1, 8):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
-        current_row += 1
+        # Clasificación por valor
+        if valor > 1000:
+            clasificacion = "Alto Valor"
+        elif valor > 500:
+            clasificacion = "Valor Medio"
+        else:
+            clasificacion = "Valor Básico"
+        
+        # Sugerencia de mantenimiento
+        if estado.lower() in ['malo', 'dañado', 'reparación']:
+            mantenimiento = "Urgente"
+        elif estado.lower() in ['regular', 'usado']:
+            mantenimiento = "Programado"
+        else:
+            mantenimiento = "Preventivo"
+        
+        # Observaciones
+        observacion = f"Instrumento {estado.lower()}, requiere mantenimiento {mantenimiento.lower()}"
+        
+        detalle_data.append([
+            inst.get('codigo', ''),
+            truncar_texto(inst.get('nombre', ''), 25),
+            inst.get('marca', ''),
+            truncar_texto(inst.get('modelo', ''), 15),
+            inst.get('serie', ''),
+            estado,
+            formatear_valor_moneda(valor),
+            clasificacion,
+            mantenimiento,
+            truncar_texto(observacion, 30)
+        ])
+    
+    current_row = crear_tabla_detallada_excel(ws, detalle_headers, detalle_data, current_row, "DETALLE DE INVENTARIO DE INSTRUMENTOS")
     
     return current_row
 
 def _agregar_seccion_proveedores(ws, resultado, start_row, estilos):
-    """Agregar sección de proveedores"""
+    """Agregar sección de proveedores con análisis detallado"""
     current_row = start_row
+    proveedores = resultado.get('datos', [])
     
-    ws[f'A{current_row}'] = "REPORTE DE PROVEEDORES"
-    ws[f'A{current_row}'].font = estilos['subtitle_font']
-    ws.merge_cells(f'A{current_row}:F{current_row}')
+    if not proveedores:
+        return current_row
+    
+    # Calcular estadísticas de proveedores
+    total_proveedores = len(proveedores)
+    total_compras_general = sum(prov.get('total_compras', 0) for prov in proveedores)
+    total_entradas_general = sum(prov.get('total_entradas', 0) for prov in proveedores)
+    proveedores_activos = sum(1 for prov in proveedores if prov.get('total_entradas', 0) > 0)
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Estado', 'Observaciones']
+    resumen_data = [
+        ['Total de Proveedores', total_proveedores, '100%', 'Registrados', 'Proveedores en la base de datos'],
+        ['Proveedores Activos', proveedores_activos, f"{(proveedores_activos/total_proveedores*100):.1f}%" if total_proveedores > 0 else "0%", 'Operativos', 'Con al menos una entrada registrada'],
+        ['Proveedores Inactivos', total_proveedores - proveedores_activos, f"{((total_proveedores-proveedores_activos)/total_proveedores*100):.1f}%" if total_proveedores > 0 else "0%", 'Sin actividad', 'Sin entradas registradas'],
+        ['Total Compras', formatear_valor_moneda(total_compras_general), '100%', 'Valorizado', 'Valor total de todas las compras'],
+        ['Total Entradas', total_entradas_general, 'N/A', 'Contabilizado', 'Número total de entradas registradas'],
+        ['Promedio por Proveedor', formatear_valor_moneda(total_compras_general/proveedores_activos) if proveedores_activos > 0 else '$0.00', 'N/A', 'Calculado', 'Valor promedio de compras por proveedor activo']
+    ]
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row, "ANÁLISIS DE PROVEEDORES")
     current_row += 2
     
-    # Encabezados
-    headers = ['Código', 'Razón Social', 'CI/RUC', 'Teléfono', 'Entradas', 'Total Compras']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
+    # Detalle de proveedores con análisis
+    detalle_headers = [
+        'Código', 'Razón Social', 'CI/RUC', 'Teléfono', 'Entradas', 'Total Compras',
+        'Promedio por Entrada', 'Clasificación', 'Estado', 'Observaciones'
+    ]
     
-    # Datos
-    for prov in resultado.get('datos', []):
-        ws.cell(row=current_row, column=1, value=prov.get('codigo', ''))
-        ws.cell(row=current_row, column=2, value=prov.get('razon_social', ''))
-        ws.cell(row=current_row, column=3, value=prov.get('ci_ruc', ''))
-        ws.cell(row=current_row, column=4, value=prov.get('telefono', ''))
-        ws.cell(row=current_row, column=5, value=prov.get('total_entradas', 0))
-        ws.cell(row=current_row, column=6, value=prov.get('total_compras', 0))
+    detalle_data = []
+    for prov in proveedores:
+        total_compras = prov.get('total_compras', 0)
+        total_entradas = prov.get('total_entradas', 0)
         
-        for col in range(1, 7):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
-        current_row += 1
+        # Calcular promedio por entrada
+        promedio_entrada = total_compras / total_entradas if total_entradas > 0 else 0
+        
+        # Clasificación por volumen de compras
+        if total_compras > 10000:
+            clasificacion = "Proveedor Principal"
+        elif total_compras > 5000:
+            clasificacion = "Proveedor Importante"
+        elif total_compras > 1000:
+            clasificacion = "Proveedor Regular"
+        else:
+            clasificacion = "Proveedor Ocasional"
+        
+        # Estado del proveedor
+        if total_entradas == 0:
+            estado = "Inactivo"
+            observacion = "Sin actividad registrada"
+        elif total_entradas >= 10:
+            estado = "Muy Activo"
+            observacion = f"Proveedor frecuente con {total_entradas} entradas"
+        elif total_entradas >= 5:
+            estado = "Activo"
+            observacion = f"Proveedor regular con {total_entradas} entradas"
+        else:
+            estado = "Poco Activo"
+            observacion = f"Proveedor esporádico con {total_entradas} entradas"
+        
+        detalle_data.append([
+            prov.get('codigo', ''),
+            truncar_texto(prov.get('razon_social', ''), 25),
+            prov.get('ci_ruc', ''),
+            prov.get('telefono', 'N/A'),
+            total_entradas,
+            formatear_valor_moneda(total_compras),
+            formatear_valor_moneda(promedio_entrada),
+            clasificacion,
+            estado,
+            truncar_texto(observacion, 30)
+        ])
+    
+    current_row = crear_tabla_detallada_excel(ws, detalle_headers, detalle_data, current_row, "DETALLE DE PROVEEDORES")
     
     return current_row
 
 def _agregar_seccion_consumos(ws, resultado, start_row, estilos):
-    """Agregar sección de consumos"""
+    """Agregar sección de consumos con análisis detallado"""
     current_row = start_row
+    consumos = resultado.get('datos', [])
     
-    ws[f'A{current_row}'] = "REPORTE DE CONSUMOS"
-    ws[f'A{current_row}'].font = estilos['subtitle_font']
-    ws.merge_cells(f'A{current_row}:E{current_row}')
+    if not consumos:
+        return current_row
+    
+    # Calcular estadísticas de consumos
+    total_personas = len(consumos)
+    total_consumos_general = sum(cons.get('total_consumos', 0) for cons in consumos)
+    total_cantidad_general = sum(cons.get('total_cantidad', 0) for cons in consumos)
+    total_valor_general = sum(cons.get('total_valor', 0) for cons in consumos)
+    personas_activas = sum(1 for cons in consumos if cons.get('total_consumos', 0) > 0)
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Estado', 'Observaciones']
+    resumen_data = [
+        ['Total de Personas', total_personas, '100%', 'Registradas', 'Personas en el sistema'],
+        ['Personas con Consumos', personas_activas, f"{(personas_activas/total_personas*100):.1f}%" if total_personas > 0 else "0%", 'Activas', 'Con al menos un consumo registrado'],
+        ['Personas sin Consumos', total_personas - personas_activas, f"{((total_personas-personas_activas)/total_personas*100):.1f}%" if total_personas > 0 else "0%", 'Inactivas', 'Sin consumos registrados'],
+        ['Total Consumos', total_consumos_general, '100%', 'Registrados', 'Número total de consumos'],
+        ['Cantidad Total Consumida', total_cantidad_general, 'N/A', 'Contabilizada', 'Unidades totales consumidas'],
+        ['Valor Total Consumos', formatear_valor_moneda(total_valor_general), '100%', 'Valorizado', 'Valor monetario total de consumos'],
+        ['Promedio por Persona Activa', formatear_valor_moneda(total_valor_general/personas_activas) if personas_activas > 0 else '$0.00', 'N/A', 'Calculado', 'Valor promedio de consumos por persona activa']
+    ]
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row, "ANÁLISIS DE CONSUMOS POR PERSONAL")
     current_row += 2
     
-    # Encabezados
-    headers = ['Código', 'Nombre', 'Consumos', 'Cantidad', 'Valor Total']
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
+    # Detalle de consumos con análisis
+    detalle_headers = [
+        'Código', 'Nombre', 'Total Consumos', 'Cantidad', 'Valor Total',
+        'Promedio por Consumo', 'Clasificación', 'Nivel de Actividad', 'Observaciones'
+    ]
     
-    # Datos
-    for cons in resultado.get('datos', []):
-        ws.cell(row=current_row, column=1, value=cons.get('codigo', ''))
-        ws.cell(row=current_row, column=2, value=cons.get('nombre', ''))
-        ws.cell(row=current_row, column=3, value=cons.get('total_consumos', 0))
-        ws.cell(row=current_row, column=4, value=cons.get('total_cantidad', 0))
-        ws.cell(row=current_row, column=5, value=cons.get('total_valor', 0))
+    detalle_data = []
+    for cons in consumos:
+        total_consumos = cons.get('total_consumos', 0)
+        total_cantidad = cons.get('total_cantidad', 0)
+        total_valor = cons.get('total_valor', 0)
         
-        for col in range(1, 6):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
-        current_row += 1
+        # Calcular promedio por consumo
+        promedio_consumo = total_valor / total_consumos if total_consumos > 0 else 0
+        
+        # Clasificación por valor de consumos
+        if total_valor > 5000:
+            clasificacion = "Alto Consumidor"
+        elif total_valor > 2000:
+            clasificacion = "Consumidor Frecuente"
+        elif total_valor > 500:
+            clasificacion = "Consumidor Regular"
+        elif total_valor > 0:
+            clasificacion = "Consumidor Ocasional"
+        else:
+            clasificacion = "Sin Consumos"
+        
+        # Nivel de actividad
+        if total_consumos == 0:
+            nivel_actividad = "Inactivo"
+            observacion = "Sin consumos registrados"
+        elif total_consumos >= 20:
+            nivel_actividad = "Muy Activo"
+            observacion = f"Usuario frecuente con {total_consumos} consumos"
+        elif total_consumos >= 10:
+            nivel_actividad = "Activo"
+            observacion = f"Usuario regular con {total_consumos} consumos"
+        elif total_consumos >= 5:
+            nivel_actividad = "Moderado"
+            observacion = f"Usuario moderado con {total_consumos} consumos"
+        else:
+            nivel_actividad = "Poco Activo"
+            observacion = f"Usuario esporádico con {total_consumos} consumos"
+        
+        detalle_data.append([
+            cons.get('codigo', ''),
+            truncar_texto(cons.get('nombre', ''), 25),
+            total_consumos,
+            total_cantidad,
+            formatear_valor_moneda(total_valor),
+            formatear_valor_moneda(promedio_consumo),
+            clasificacion,
+            nivel_actividad,
+            truncar_texto(observacion, 30)
+        ])
+    
+    current_row = crear_tabla_detallada_excel(ws, detalle_headers, detalle_data, current_row, "DETALLE DE CONSUMOS POR PERSONAL")
     
     return current_row
 
@@ -750,136 +942,322 @@ def exportar_pdf():
 # Funciones auxiliares para PDF (optimizadas con utilidades centralizadas)
 
 def _crear_tabla_resumen_pdf(resumen, styles):
-    """Crear tabla de resumen para PDF"""
-    elements = []
-    elements.append(Paragraph("RESUMEN DE MOVIMIENTOS", styles['TituloSeccion']))
+    """Crear tabla de resumen para PDF con análisis detallado"""
+    # Calcular estadísticas adicionales
+    total_ingresos = sum(item.get('total_valor', 0) for item in resumen if item.get('tipo_movimiento') == 'Ingreso')
+    total_egresos = sum(item.get('total_valor', 0) for item in resumen if item.get('tipo_movimiento') == 'Egreso')
+    balance = total_ingresos - total_egresos
     
-    # Datos de la tabla
-    data = [['Tipo', 'Total Cantidad', 'Total Valor', 'Movimientos']]
+    # Datos del resumen con análisis
+    resumen_headers = ['Tipo', 'Cantidad', 'Valor', 'Movimientos', 'Porcentaje']
+    resumen_data = []
+    
+    total_valor_general = sum(item.get('total_valor', 0) for item in resumen)
+    
     for item in resumen:
-        data.append([
+        valor = item.get('total_valor', 0)
+        porcentaje = f"{(valor/total_valor_general*100):.1f}%" if total_valor_general > 0 else "0%"
+        
+        resumen_data.append([
             item.get('tipo_movimiento', ''),
             str(item.get('total_cantidad', 0)),
-            f"${item.get('total_valor', 0):,.2f}",
-            str(item.get('total_movimientos', 0))
+            formatear_valor_moneda(valor),
+            str(item.get('total_movimientos', 0)),
+            porcentaje
         ])
     
-    # Crear tabla con estilo estandarizado
-    table = Table(data, colWidths=[1.5*inch, 1.5*inch, 1.5*inch, 1.5*inch])
-    table = aplicar_estilo_tabla_pdf(table)
+    # Agregar fila de balance
+    resumen_data.append([
+        'BALANCE',
+        'N/A',
+        formatear_valor_moneda(balance),
+        'N/A',
+        '100%'
+    ])
     
-    elements.append(table)
-    elements.append(Spacer(1, 20))
-    return elements
+    return crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "ANÁLISIS DE MOVIMIENTOS",
+        [1.2*inch, 1*inch, 1.2*inch, 1*inch, 1*inch]
+    )
 
 def _crear_tabla_detalles_pdf(detalles, styles):
-    """Crear tabla de detalles para PDF"""
-    elements = []
-    elements.append(Paragraph("DETALLE DE MOVIMIENTOS", styles['TituloSeccion']))
+    """Crear tabla de detalles para PDF con análisis detallado"""
+    # Preparar datos detallados con análisis (limitamos a 15 registros para PDF)
+    detalle_headers = ['Fecha', 'Tipo', 'Código', 'Artículo', 'Cantidad', 'V. Total', 'Días']
+    detalle_data = []
     
-    # Datos de la tabla (limitamos a 20 registros para PDF)
-    data = [['Fecha', 'Tipo', 'Código', 'Nombre', 'Cantidad', 'V. Total']]
-    for detalle in detalles[:20]:  # Limitar registros
-        data.append([
-            detalle.get('fecha', ''),
+    for detalle in detalles[:15]:  # Limitar registros para PDF
+        # Calcular días transcurridos
+        try:
+            fecha_mov = datetime.strptime(detalle.get('fecha', ''), '%Y-%m-%d').date()
+            dias_transcurridos = (datetime.now().date() - fecha_mov).days
+        except:
+            dias_transcurridos = 0
+        
+        detalle_data.append([
+            formatear_fecha(detalle.get('fecha', '')),
             detalle.get('tipo', ''),
             detalle.get('codigo_item', ''),
-            detalle.get('nombre_item', '')[:20] + '...' if len(detalle.get('nombre_item', '')) > 20 else detalle.get('nombre_item', ''),
+            truncar_texto(detalle.get('nombre_item', ''), 15),
             str(detalle.get('cantidad', 0)),
-            f"${detalle.get('valor_total', 0):,.2f}"
+            formatear_valor_moneda(detalle.get('valor_total', 0)),
+            str(dias_transcurridos)
         ])
     
-    # Crear tabla con estilo estandarizado
-    table = Table(data, colWidths=[1*inch, 1*inch, 1*inch, 2*inch, 1*inch, 1*inch])
-    table = aplicar_estilo_tabla_pdf(table)
+    elements = crear_tabla_detallada_pdf(
+        detalle_headers, detalle_data,
+        "DETALLE DE MOVIMIENTOS",
+        [0.8*inch, 0.8*inch, 0.8*inch, 1.5*inch, 0.7*inch, 1*inch, 0.5*inch]
+    )
     
-    elements.append(table)
-    if len(detalles) > 20:
-        elements.append(Paragraph(f"Mostrando 20 de {len(detalles)} registros", styles['Normal']))
-    elements.append(Spacer(1, 20))
+    if len(detalles) > 15:
+        elements.append(Paragraph(f"Mostrando 15 de {len(detalles)} registros", styles['Normal']))
+        elements.append(Spacer(1, 10))
+    
     return elements
 
 def _crear_tabla_inventario_articulos_pdf(articulos, styles):
-    """Crear tabla de inventario de artículos para PDF"""
-    elements = []
-    elements.append(Paragraph("INVENTARIO DE ARTÍCULOS", styles['TituloSeccion']))
+    """Crear tabla de inventario de artículos para PDF con análisis detallado"""
+    if not articulos:
+        return []
     
-    data = [['Código', 'Nombre', 'Cantidad', 'Stock Mín', 'V. Total', 'Estado']]
+    # Calcular estadísticas del inventario
+    total_articulos = len(articulos)
+    valor_total_inventario = sum(art.get('valor_total', 0) for art in articulos)
+    articulos_stock_bajo = sum(1 for art in articulos if art.get('estado_stock') == 'Bajo')
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total Artículos', str(total_articulos), '100%', 'Artículos en inventario'],
+        ['Valor Total', formatear_valor_moneda(valor_total_inventario), '100%', 'Valor monetario total'],
+        ['Stock Bajo', str(articulos_stock_bajo), f"{(articulos_stock_bajo/total_articulos*100):.1f}%" if total_articulos > 0 else "0%", 'Requieren reposición'],
+        ['Stock Normal', str(total_articulos - articulos_stock_bajo), f"{((total_articulos-articulos_stock_bajo)/total_articulos*100):.1f}%" if total_articulos > 0 else "0%", 'Stock adecuado']
+    ]
+    
+    elements = crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "ANÁLISIS DE INVENTARIO DE ARTÍCULOS",
+        [1.5*inch, 1.5*inch, 1*inch, 2*inch]
+    )
+    
+    # Detalle de artículos con análisis
+    detalle_headers = ['Código', 'Nombre', 'Cantidad', 'Stock Mín', 'V. Total', 'Estado', 'Prioridad']
+    detalle_data = []
+    
     for art in articulos:
-        data.append([
+        cantidad = art.get('cantidad', 0)
+        stock_min = art.get('stock_min', 0)
+        
+        # Determinar prioridad
+        if cantidad <= stock_min:
+            prioridad = "Alta"
+        elif cantidad < stock_min * 1.5:
+            prioridad = "Media"
+        else:
+            prioridad = "Baja"
+        
+        detalle_data.append([
             art.get('codigo', ''),
-            art.get('nombre', '')[:15] + '...' if len(art.get('nombre', '')) > 15 else art.get('nombre', ''),
-            str(art.get('cantidad', 0)),
-            str(art.get('stock_min', 0)),
-            f"${art.get('valor_total', 0):,.2f}",
-            art.get('estado_stock', '')
+            truncar_texto(art.get('nombre', ''), 20),
+            str(cantidad),
+            str(stock_min),
+            formatear_valor_moneda(art.get('valor_total', 0)),
+            art.get('estado_stock', ''),
+            prioridad
         ])
     
-    table = Table(data, colWidths=[1*inch, 2*inch, 1*inch, 1*inch, 1.5*inch, 1*inch])
-    table = aplicar_estilo_tabla_pdf(table)
+    elements.extend(crear_tabla_detallada_pdf(
+        detalle_headers, detalle_data,
+        "DETALLE DE INVENTARIO DE ARTÍCULOS",
+        [0.8*inch, 1.8*inch, 0.8*inch, 0.8*inch, 1*inch, 0.8*inch, 0.8*inch]
+    ))
     
-    elements.append(table)
     return elements
 
 def _crear_tabla_inventario_instrumentos_pdf(instrumentos, styles):
-    """Crear tabla de inventario de instrumentos para PDF"""
-    elements = []
-    elements.append(Paragraph("INVENTARIO DE INSTRUMENTOS", styles['TituloSeccion']))
+    """Crear tabla de inventario de instrumentos para PDF con análisis detallado"""
+    if not instrumentos:
+        return []
     
-    data = [['Código', 'Nombre', 'Marca', 'Estado', 'Valor']]
+    # Calcular estadísticas de instrumentos
+    total_instrumentos = len(instrumentos)
+    valor_total_instrumentos = sum(inst.get('valor_unitario', 0) for inst in instrumentos)
+    
+    # Análisis por estado
+    estados_count = {}
     for inst in instrumentos:
-        data.append([
+        estado = inst.get('estado', 'Sin estado')
+        estados_count[estado] = estados_count.get(estado, 0) + 1
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total Instrumentos', str(total_instrumentos), '100%', 'Instrumentos registrados'],
+        ['Valor Total', formatear_valor_moneda(valor_total_instrumentos), '100%', 'Valor monetario total'],
+        ['Promedio por Instrumento', formatear_valor_moneda(valor_total_instrumentos/total_instrumentos) if total_instrumentos > 0 else '$0.00', 'N/A', 'Valor promedio']
+    ]
+    
+    # Agregar análisis por estado
+    for estado, cantidad in estados_count.items():
+        porcentaje = f"{(cantidad/total_instrumentos*100):.1f}%" if total_instrumentos > 0 else "0%"
+        resumen_data.append([f'Estado "{estado}"', str(cantidad), porcentaje, f'Instrumentos en {estado.lower()}'])
+    
+    elements = crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "ANÁLISIS DE INVENTARIO DE INSTRUMENTOS",
+        [1.5*inch, 1.5*inch, 1*inch, 2*inch]
+    )
+    
+    # Detalle de instrumentos con análisis
+    detalle_headers = ['Código', 'Nombre', 'Marca', 'Estado', 'Valor', 'Clasificación']
+    detalle_data = []
+    
+    for inst in instrumentos:
+        valor = inst.get('valor_unitario', 0)
+        
+        # Clasificación por valor
+        if valor > 1000:
+            clasificacion = "Alto Valor"
+        elif valor > 500:
+            clasificacion = "Valor Medio"
+        else:
+            clasificacion = "Valor Básico"
+        
+        detalle_data.append([
             inst.get('codigo', ''),
-            inst.get('nombre', '')[:15] + '...' if len(inst.get('nombre', '')) > 15 else inst.get('nombre', ''),
+            truncar_texto(inst.get('nombre', ''), 20),
             inst.get('marca', ''),
             inst.get('estado', ''),
-            f"${inst.get('valor_unitario', 0):,.2f}"
+            formatear_valor_moneda(valor),
+            clasificacion
         ])
     
-    table = Table(data, colWidths=[1*inch, 2*inch, 1.5*inch, 1*inch, 1.5*inch])
-    table = aplicar_estilo_tabla_pdf(table)
+    elements.extend(crear_tabla_detallada_pdf(
+        detalle_headers, detalle_data,
+        "DETALLE DE INVENTARIO DE INSTRUMENTOS",
+        [0.8*inch, 1.8*inch, 1*inch, 1*inch, 1*inch, 1.2*inch]
+    ))
     
-    elements.append(table)
     return elements
 
 def _crear_tabla_proveedores_pdf(proveedores, styles):
-    """Crear tabla de proveedores para PDF"""
-    elements = []
-    elements.append(Paragraph("REPORTE DE PROVEEDORES", styles['TituloSeccion']))
+    """Crear tabla de proveedores para PDF con análisis detallado"""
+    if not proveedores:
+        return []
     
-    data = [['Código', 'Razón Social', 'CI/RUC', 'Entradas', 'Total Compras']]
+    # Calcular estadísticas de proveedores
+    total_proveedores = len(proveedores)
+    total_compras_general = sum(prov.get('total_compras', 0) for prov in proveedores)
+    proveedores_activos = sum(1 for prov in proveedores if prov.get('total_entradas', 0) > 0)
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total Proveedores', str(total_proveedores), '100%', 'Proveedores registrados'],
+        ['Proveedores Activos', str(proveedores_activos), f"{(proveedores_activos/total_proveedores*100):.1f}%" if total_proveedores > 0 else "0%", 'Con entradas registradas'],
+        ['Total Compras', formatear_valor_moneda(total_compras_general), '100%', 'Valor total de compras'],
+        ['Promedio por Proveedor', formatear_valor_moneda(total_compras_general/proveedores_activos) if proveedores_activos > 0 else '$0.00', 'N/A', 'Valor promedio por proveedor activo']
+    ]
+    
+    elements = crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "ANÁLISIS DE PROVEEDORES",
+        [1.5*inch, 1.5*inch, 1*inch, 2*inch]
+    )
+    
+    # Detalle de proveedores con análisis
+    detalle_headers = ['Código', 'Razón Social', 'CI/RUC', 'Entradas', 'Total Compras', 'Estado']
+    detalle_data = []
+    
     for prov in proveedores:
-        data.append([
+        total_entradas = prov.get('total_entradas', 0)
+        
+        # Estado del proveedor
+        if total_entradas == 0:
+            estado = "Inactivo"
+        elif total_entradas >= 10:
+            estado = "Muy Activo"
+        elif total_entradas >= 5:
+            estado = "Activo"
+        else:
+            estado = "Poco Activo"
+        
+        detalle_data.append([
             prov.get('codigo', ''),
-            prov.get('razon_social', '')[:20] + '...' if len(prov.get('razon_social', '')) > 20 else prov.get('razon_social', ''),
+            truncar_texto(prov.get('razon_social', ''), 20),
             prov.get('ci_ruc', ''),
-            str(prov.get('total_entradas', 0)),
-            f"${prov.get('total_compras', 0):,.2f}"
+            str(total_entradas),
+            formatear_valor_moneda(prov.get('total_compras', 0)),
+            estado
         ])
     
-    table = Table(data, colWidths=[1*inch, 2*inch, 1.5*inch, 1*inch, 1.5*inch])
-    table = aplicar_estilo_tabla_pdf(table)
+    elements.extend(crear_tabla_detallada_pdf(
+        detalle_headers, detalle_data,
+        "DETALLE DE PROVEEDORES",
+        [0.8*inch, 1.8*inch, 1*inch, 0.8*inch, 1.2*inch, 1*inch]
+    ))
     
-    elements.append(table)
     return elements
 
 def _crear_tabla_consumos_pdf(consumos, styles):
-    """Crear tabla de consumos para PDF"""
-    elements = []
-    elements.append(Paragraph("REPORTE DE CONSUMOS", styles['TituloSeccion']))
+    """Crear tabla de consumos para PDF con análisis detallado"""
+    if not consumos:
+        return []
     
-    data = [['Código', 'Nombre', 'Consumos', 'Cantidad', 'Valor Total']]
+    # Calcular estadísticas de consumos
+    total_personas = len(consumos)
+    total_valor_general = sum(cons.get('total_valor', 0) for cons in consumos)
+    personas_activas = sum(1 for cons in consumos if cons.get('total_consumos', 0) > 0)
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total Personas', str(total_personas), '100%', 'Personas registradas'],
+        ['Personas Activas', str(personas_activas), f"{(personas_activas/total_personas*100):.1f}%" if total_personas > 0 else "0%", 'Con consumos registrados'],
+        ['Total Valor Consumos', formatear_valor_moneda(total_valor_general), '100%', 'Valor total de consumos'],
+        ['Promedio por Persona', formatear_valor_moneda(total_valor_general/personas_activas) if personas_activas > 0 else '$0.00', 'N/A', 'Valor promedio por persona activa']
+    ]
+    
+    elements = crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "ANÁLISIS DE CONSUMOS POR PERSONAL",
+        [1.5*inch, 1.5*inch, 1*inch, 2*inch]
+    )
+    
+    # Detalle de consumos con análisis
+    detalle_headers = ['Código', 'Nombre', 'Consumos', 'Cantidad', 'Valor Total', 'Clasificación']
+    detalle_data = []
+    
     for cons in consumos:
-        data.append([
+        total_valor = cons.get('total_valor', 0)
+        
+        # Clasificación por valor de consumos
+        if total_valor > 5000:
+            clasificacion = "Alto Consumidor"
+        elif total_valor > 2000:
+            clasificacion = "Consumidor Frecuente"
+        elif total_valor > 500:
+            clasificacion = "Consumidor Regular"
+        elif total_valor > 0:
+            clasificacion = "Consumidor Ocasional"
+        else:
+            clasificacion = "Sin Consumos"
+        
+        detalle_data.append([
             cons.get('codigo', ''),
-            cons.get('nombre', '')[:20] + '...' if len(cons.get('nombre', '')) > 20 else cons.get('nombre', ''),
+            truncar_texto(cons.get('nombre', ''), 20),
             str(cons.get('total_consumos', 0)),
             str(cons.get('total_cantidad', 0)),
-            f"${cons.get('total_valor', 0):,.2f}"
+            formatear_valor_moneda(total_valor),
+            clasificacion
         ])
     
-    table = Table(data, colWidths=[1*inch, 2*inch, 1*inch, 1*inch, 1.5*inch])
-    table = aplicar_estilo_tabla_pdf(table)
+    elements.extend(crear_tabla_detallada_pdf(
+        detalle_headers, detalle_data,
+        "DETALLE DE CONSUMOS POR PERSONAL",
+        [0.8*inch, 1.8*inch, 0.8*inch, 0.8*inch, 1.2*inch, 1.4*inch]
+    ))
     
-    elements.append(table)
     return elements
