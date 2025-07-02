@@ -19,6 +19,7 @@ from app.utils.export_utils import (
     crear_tabla_detallada_excel, crear_tabla_detallada_pdf,
     formatear_valor_moneda, formatear_fecha, truncar_texto
 )
+from openpyxl.styles import Font
 
 bp = Blueprint('articulos', __name__)
 articulo_service = ArticuloService()
@@ -781,58 +782,92 @@ def listar_movimientos():
                          pagination=pagination)
 
 def _exportar_movimientos_excel(movimientos):
-    """Exporta movimientos a Excel con cabecera institucional"""
+    """Exporta movimientos a Excel con formato detallado y análisis estadístico"""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Movimientos"
+    ws.title = "Movimientos Detallado"
     
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
     # Crear cabecera institucional
-    current_row = crear_cabecera_excel(ws, "Reporte de Movimientos de Inventario")
+    current_row = crear_cabecera_excel(ws, "Reporte Detallado de Movimientos de Inventario")
     
-    # Obtener estilos
-    estilos = crear_estilos_excel()
+    # Preparar datos detallados con estadísticas
+    headers = [
+        'Fecha', 'Hora', 'Artículo', 'Código', 'Tipo de Movimiento', 'Cantidad',
+        'Valor Unitario', 'Valor Total', 'Usuario', 'Proveedor', 'Observaciones', 'Impacto'
+    ]
     
-    # Encabezados de datos
-    headers = ['Fecha', 'Artículo', 'Código', 'Tipo', 'Cantidad', 'Valor Unit.',
-               'Valor Total', 'Usuario', 'Proveedor', 'Observaciones']
+    data = []
+    total_entradas = 0
+    total_salidas = 0
+    valor_total_entradas = 0
+    valor_total_salidas = 0
+    movimientos_por_tipo = {}
     
-    # Escribir encabezados
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
-    
-    # Escribir datos
     for movimiento, item, usuario in movimientos:
         # Obtener proveedor si existe
-        proveedor_nombre = ""
+        proveedor_nombre = "N/A"
         if movimiento.e_id and movimiento.entrada and movimiento.entrada.proveedor:
             proveedor_nombre = movimiento.entrada.proveedor.p_razonsocial
         
-        ws.cell(row=current_row, column=1, value=movimiento.m_fecha.strftime('%Y-%m-%d'))
-        ws.cell(row=current_row, column=2, value=item.i_nombre)
-        ws.cell(row=current_row, column=3, value=item.i_codigo)
-        ws.cell(row=current_row, column=4, value=movimiento.m_tipo.title())
-        ws.cell(row=current_row, column=5, value=movimiento.m_cantidad)
-        ws.cell(row=current_row, column=6, value=float(movimiento.m_valorUnitario))
-        ws.cell(row=current_row, column=7, value=float(movimiento.m_valorTotal))
-        ws.cell(row=current_row, column=8, value=usuario.u_username)
-        ws.cell(row=current_row, column=9, value=proveedor_nombre)
-        ws.cell(row=current_row, column=10, value=movimiento.m_observaciones or '')
+        # Determinar impacto del movimiento
+        if movimiento.m_tipo == 'entrada':
+            impacto = "Incrementa stock"
+            total_entradas += movimiento.m_cantidad
+            valor_total_entradas += float(movimiento.m_valorTotal)
+        elif movimiento.m_tipo == 'salida':
+            impacto = "Reduce stock"
+            total_salidas += movimiento.m_cantidad
+            valor_total_salidas += float(movimiento.m_valorTotal)
+        else:
+            impacto = "Ajuste de inventario"
         
-        # Aplicar estilos a los datos
-        for col in range(1, 11):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
+        # Contar movimientos por tipo
+        tipo_mov = movimiento.m_tipo.title()
+        movimientos_por_tipo[tipo_mov] = movimientos_por_tipo.get(tipo_mov, 0) + 1
         
-        current_row += 1
+        data.append([
+            formatear_fecha(movimiento.m_fecha),
+            movimiento.m_hora.strftime('%H:%M:%S') if hasattr(movimiento, 'm_hora') and movimiento.m_hora else 'N/A',
+            item.i_nombre,
+            item.i_codigo,
+            tipo_mov,
+            movimiento.m_cantidad,
+            formatear_valor_moneda(movimiento.m_valorUnitario),
+            formatear_valor_moneda(movimiento.m_valorTotal),
+            usuario.u_username,
+            truncar_texto(proveedor_nombre, 20),
+            truncar_texto(movimiento.m_observaciones or 'Sin observaciones', 30),
+            impacto
+        ])
+    
+    # Crear tabla detallada
+    current_row = crear_tabla_detallada_excel(ws, headers, data, current_row, "HISTORIAL DETALLADO DE MOVIMIENTOS")
+    
+    # Agregar análisis estadístico completo
+    current_row += 2
+    ws[f'A{current_row}'] = "ANÁLISIS ESTADÍSTICO DE MOVIMIENTOS"
+    ws[f'A{current_row}'].font = Font(name='Calibri', size=14, bold=True, color="2E5984")
+    ws.merge_cells(f'A{current_row}:F{current_row}')
+    current_row += 2
+    
+    resumen_headers = ['Métrica', 'Cantidad', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total de Movimientos', len(movimientos), formatear_valor_moneda(valor_total_entradas + valor_total_salidas), '100%', 'Actividad total del inventario'],
+        ['Total Entradas', total_entradas, formatear_valor_moneda(valor_total_entradas), f"{(total_entradas/(total_entradas+total_salidas)*100):.1f}%" if (total_entradas+total_salidas) > 0 else "0%", 'Incrementos de stock'],
+        ['Total Salidas', total_salidas, formatear_valor_moneda(valor_total_salidas), f"{(total_salidas/(total_entradas+total_salidas)*100):.1f}%" if (total_entradas+total_salidas) > 0 else "0%", 'Reducciones de stock'],
+        ['Diferencia Neta', total_entradas - total_salidas, formatear_valor_moneda(valor_total_entradas - valor_total_salidas), 'N/A', 'Balance de inventario'],
+        ['Promedio por Movimiento', f"{(valor_total_entradas + valor_total_salidas)/len(movimientos):.2f}" if movimientos else "0", formatear_valor_moneda((valor_total_entradas + valor_total_salidas)/len(movimientos)) if movimientos else "$0.00", 'N/A', 'Valor promedio por transacción']
+    ]
+    
+    # Agregar desglose por tipo de movimiento
+    for tipo, cantidad in movimientos_por_tipo.items():
+        porcentaje = f"{(cantidad/len(movimientos)*100):.1f}%" if movimientos else "0%"
+        resumen_data.append([f'Movimientos tipo {tipo}', cantidad, 'N/A', porcentaje, f'Frecuencia de {tipo.lower()}'])
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row)
     
     # Ajustar ancho de columnas
     ajustar_columnas_excel(ws)
@@ -844,12 +879,12 @@ def _exportar_movimientos_excel(movimientos):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Movimientos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Movimientos_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_movimientos_pdf(movimientos):
-    """Exporta movimientos a PDF con cabecera institucional"""
+    """Exporta movimientos a PDF con formato detallado y análisis estadístico"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
@@ -858,38 +893,51 @@ def _exportar_movimientos_pdf(movimientos):
     elements = []
     
     # Crear cabecera institucional
-    elements.extend(crear_cabecera_pdf("Reporte de Movimientos de Inventario"))
+    elements.extend(crear_cabecera_pdf("Reporte Detallado de Movimientos de Inventario"))
     
-    # Obtener estilos
-    styles = crear_estilos_pdf()
+    # Calcular estadísticas
+    total_entradas = sum(mov.m_cantidad for mov, _, _ in movimientos if mov.m_tipo == 'entrada')
+    total_salidas = sum(mov.m_cantidad for mov, _, _ in movimientos if mov.m_tipo == 'salida')
+    valor_total_entradas = sum(float(mov.m_valorTotal) for mov, _, _ in movimientos if mov.m_tipo == 'entrada')
+    valor_total_salidas = sum(float(mov.m_valorTotal) for mov, _, _ in movimientos if mov.m_tipo == 'salida')
     
-    # Título de la sección de datos
-    elements.append(Paragraph("LISTADO DE MOVIMIENTOS", styles['TituloSeccion']))
-    elements.append(Paragraph(f"Total de registros: {len(movimientos)}", styles['Normal']))
-    elements.append(Spacer(1, 12))
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Cantidad', 'Valor', 'Observaciones']
+    resumen_data = [
+        ['Total Movimientos', str(len(movimientos)), formatear_valor_moneda(valor_total_entradas + valor_total_salidas), 'Actividad total'],
+        ['Total Entradas', str(total_entradas), formatear_valor_moneda(valor_total_entradas), 'Incrementos de stock'],
+        ['Total Salidas', str(total_salidas), formatear_valor_moneda(valor_total_salidas), 'Reducciones de stock'],
+        ['Balance Neto', str(total_entradas - total_salidas), formatear_valor_moneda(valor_total_entradas - valor_total_salidas), 'Diferencia entrada-salida']
+    ]
     
-    # Datos de la tabla
-    data = [['Fecha', 'Artículo', 'Tipo', 'Cantidad', 'Valor Unit.', 'Valor Total', 'Usuario', 'Observaciones']]
+    elements.extend(crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "RESUMEN ESTADÍSTICO DE MOVIMIENTOS",
+        [1.5*inch, 1*inch, 1.2*inch, 2*inch]
+    ))
+    
+    # Datos detallados de la tabla
+    data_headers = ['Fecha', 'Artículo', 'Código', 'Tipo', 'Cant.', 'V.Unit', 'V.Total', 'Usuario']
+    data = []
     
     for movimiento, item, usuario in movimientos:
         data.append([
-            movimiento.m_fecha.strftime('%d/%m/%Y'),
-            item.i_nombre[:20] + '...' if len(item.i_nombre) > 20 else item.i_nombre,
+            formatear_fecha(movimiento.m_fecha),
+            truncar_texto(item.i_nombre, 18),
+            item.i_codigo,
             movimiento.m_tipo.title(),
             str(movimiento.m_cantidad),
-            f"${float(movimiento.m_valorUnitario):.2f}",
-            f"${float(movimiento.m_valorTotal):.2f}",
-            usuario.u_username,
-            (movimiento.m_observaciones or '')[:25] + '...' if movimiento.m_observaciones and len(movimiento.m_observaciones) > 25 else (movimiento.m_observaciones or '')
+            formatear_valor_moneda(movimiento.m_valorUnitario),
+            formatear_valor_moneda(movimiento.m_valorTotal),
+            truncar_texto(usuario.u_username, 12)
         ])
     
-    # Crear tabla
-    table = Table(data, colWidths=[0.8*inch, 2.0*inch, 0.7*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 1.8*inch])
-    
-    # Aplicar estilo estandarizado
-    aplicar_estilo_tabla_pdf(table)
-    
-    elements.append(table)
+    # Crear tabla detallada de movimientos
+    elements.extend(crear_tabla_detallada_pdf(
+        data_headers, data,
+        "HISTORIAL DETALLADO DE MOVIMIENTOS",
+        [0.8*inch, 1.8*inch, 0.8*inch, 0.7*inch, 0.5*inch, 0.7*inch, 0.8*inch, 0.8*inch]
+    ))
     
     # Construir PDF
     doc.build(elements)
@@ -897,7 +945,7 @@ def _exportar_movimientos_pdf(movimientos):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Movimientos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Movimientos_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
@@ -1149,50 +1197,116 @@ def exportar_asignaciones():
 
 
 def _exportar_asignaciones_excel(asignaciones):
-    """Exporta el historial de asignaciones a Excel con cabecera institucional"""
+    """Exporta el historial de asignaciones a Excel con formato detallado y análisis estadístico"""
     wb = Workbook()
     ws = wb.active
-    ws.title = "Asignaciones"
+    ws.title = "Asignaciones Detallado"
     
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
     # Crear cabecera institucional
-    current_row = crear_cabecera_excel(ws, "Reporte de Asignaciones de Artículos")
+    current_row = crear_cabecera_excel(ws, "Reporte Detallado de Asignaciones de Artículos")
     
-    # Obtener estilos
-    estilos = crear_estilos_excel()
+    # Preparar datos detallados con estadísticas
+    headers = [
+        'Fecha', 'Hora', 'Artículo', 'Código', 'Personal Asignado', 'Cantidad',
+        'Valor Unitario', 'Valor Total', 'Estado', 'Días Transcurridos',
+        'Fecha Devolución', 'Observaciones'
+    ]
     
-    # Encabezados de datos
-    headers = ['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unitario', 'Valor Total', 'Estado', 'Observaciones']
+    data = []
+    valor_total_asignaciones = 0
+    asignaciones_por_estado = {}
+    asignaciones_por_persona = {}
+    total_cantidad = 0
     
-    # Escribir encabezados
-    for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=current_row, column=col, value=header)
-        cell.font = estilos['header_font']
-        cell.fill = estilos['header_fill']
-        cell.alignment = estilos['header_alignment']
-        cell.border = estilos['header_border']
-    current_row += 1
-    
-    # Escribir datos
     for consumo, persona, item in asignaciones:
-        ws.cell(row=current_row, column=1, value=consumo.c_fecha.strftime('%Y-%m-%d'))
-        ws.cell(row=current_row, column=2, value=item.i_nombre)
-        ws.cell(row=current_row, column=3, value=f"{persona.pe_nombre} {persona.pe_apellido}")
-        ws.cell(row=current_row, column=4, value=consumo.c_cantidad)
-        ws.cell(row=current_row, column=5, value=float(consumo.c_valorUnitario))
-        ws.cell(row=current_row, column=6, value=float(consumo.c_valorTotal))
-        ws.cell(row=current_row, column=7, value=consumo.c_estado)
-        ws.cell(row=current_row, column=8, value=consumo.c_observaciones or '')
+        # Calcular días transcurridos
+        from datetime import datetime, date
+        if isinstance(consumo.c_fecha, date):
+            fecha_asignacion = consumo.c_fecha
+        else:
+            fecha_asignacion = consumo.c_fecha.date()
         
-        # Aplicar estilos a los datos
-        for col in range(1, 9):
-            cell = ws.cell(row=current_row, column=col)
-            cell.font = estilos['data_font']
-            cell.border = estilos['data_border']
+        dias_transcurridos = (datetime.now().date() - fecha_asignacion).days
         
-        current_row += 1
+        # Estadísticas
+        valor_total_asignaciones += float(consumo.c_valorTotal)
+        total_cantidad += consumo.c_cantidad
+        
+        # Contar por estado
+        estado = consumo.c_estado
+        asignaciones_por_estado[estado] = asignaciones_por_estado.get(estado, 0) + 1
+        
+        # Contar por persona
+        nombre_completo = f"{persona.pe_nombre} {persona.pe_apellido}"
+        asignaciones_por_persona[nombre_completo] = asignaciones_por_persona.get(nombre_completo, 0) + 1
+        
+        data.append([
+            formatear_fecha(consumo.c_fecha),
+            consumo.c_hora.strftime('%H:%M:%S') if hasattr(consumo, 'c_hora') and consumo.c_hora else 'N/A',
+            item.i_nombre,
+            item.i_codigo,
+            nombre_completo,
+            consumo.c_cantidad,
+            formatear_valor_moneda(consumo.c_valorUnitario),
+            formatear_valor_moneda(consumo.c_valorTotal),
+            estado,
+            dias_transcurridos,
+            formatear_fecha(consumo.c_fecha_devolucion) if hasattr(consumo, 'c_fecha_devolucion') and consumo.c_fecha_devolucion else 'N/A',
+            truncar_texto(consumo.c_observaciones or 'Sin observaciones', 40)
+        ])
+    
+    # Crear tabla detallada
+    current_row = crear_tabla_detallada_excel(ws, headers, data, current_row, "HISTORIAL DETALLADO DE ASIGNACIONES")
+    
+    # Agregar análisis estadístico completo
+    current_row += 2
+    ws[f'A{current_row}'] = "ANÁLISIS ESTADÍSTICO DE ASIGNACIONES"
+    ws[f'A{current_row}'].font = Font(name='Calibri', size=14, bold=True, color="2E5984")
+    ws.merge_cells(f'A{current_row}:F{current_row}')
+    current_row += 2
+    
+    resumen_headers = ['Métrica', 'Cantidad', 'Valor', 'Porcentaje', 'Observaciones']
+    resumen_data = [
+        ['Total de Asignaciones', len(asignaciones), formatear_valor_moneda(valor_total_asignaciones), '100%', 'Asignaciones totales registradas'],
+        ['Cantidad Total Asignada', total_cantidad, 'N/A', '100%', 'Unidades totales asignadas'],
+        ['Valor Promedio por Asignación', f"{valor_total_asignaciones/len(asignaciones):.2f}" if asignaciones else "0", formatear_valor_moneda(valor_total_asignaciones/len(asignaciones)) if asignaciones else "$0.00", 'N/A', 'Valor promedio por asignación'],
+        ['Personal Único Involucrado', len(asignaciones_por_persona), 'N/A', f"{(len(asignaciones_por_persona)/len(asignaciones)*100):.1f}%" if asignaciones else "0%", 'Personas diferentes con asignaciones']
+    ]
+    
+    # Agregar desglose por estado
+    for estado, cantidad in asignaciones_por_estado.items():
+        porcentaje = f"{(cantidad/len(asignaciones)*100):.1f}%" if asignaciones else "0%"
+        resumen_data.append([f'Asignaciones "{estado}"', cantidad, 'N/A', porcentaje, f'Estado: {estado}'])
+    
+    current_row = crear_tabla_detallada_excel(ws, resumen_headers, resumen_data, current_row)
+    
+    # Agregar ranking de personal con más asignaciones
+    if asignaciones_por_persona:
+        current_row += 2
+        ws[f'A{current_row}'] = "RANKING DE PERSONAL CON MÁS ASIGNACIONES"
+        ws[f'A{current_row}'].font = Font(name='Calibri', size=12, bold=True, color="2E5984")
+        ws.merge_cells(f'A{current_row}:D{current_row}')
+        current_row += 2
+        
+        ranking_headers = ['Personal', 'Cantidad de Asignaciones', 'Porcentaje', 'Observaciones']
+        ranking_data = []
+        
+        # Ordenar por cantidad de asignaciones (top 10)
+        top_personal = sorted(asignaciones_por_persona.items(), key=lambda x: x[1], reverse=True)[:10]
+        
+        for nombre, cantidad in top_personal:
+            porcentaje = f"{(cantidad/len(asignaciones)*100):.1f}%" if asignaciones else "0%"
+            ranking_data.append([
+                nombre,
+                cantidad,
+                porcentaje,
+                'Personal activo' if cantidad > 1 else 'Asignación única'
+            ])
+        
+        current_row = crear_tabla_detallada_excel(ws, ranking_headers, ranking_data, current_row)
     
     # Ajustar ancho de columnas
     ajustar_columnas_excel(ws)
@@ -1204,13 +1318,13 @@ def _exportar_asignaciones_excel(asignaciones):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Asignaciones_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 
 def _exportar_asignaciones_pdf(asignaciones):
-    """Exporta el historial de asignaciones a PDF con cabecera institucional"""
+    """Exporta el historial de asignaciones a PDF con formato detallado y análisis estadístico"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
@@ -1219,38 +1333,67 @@ def _exportar_asignaciones_pdf(asignaciones):
     elements = []
     
     # Crear cabecera institucional
-    elements.extend(crear_cabecera_pdf("Reporte de Asignaciones de Artículos"))
+    elements.extend(crear_cabecera_pdf("Reporte Detallado de Asignaciones de Artículos"))
     
-    # Obtener estilos
-    styles = crear_estilos_pdf()
+    # Calcular estadísticas
+    valor_total_asignaciones = sum(float(consumo.c_valorTotal) for consumo, _, _ in asignaciones)
+    total_cantidad = sum(consumo.c_cantidad for consumo, _, _ in asignaciones)
+    asignaciones_por_estado = {}
     
-    # Título de la sección de datos
-    elements.append(Paragraph("LISTADO DE ASIGNACIONES", styles['TituloSeccion']))
-    elements.append(Paragraph(f"Total de registros: {len(asignaciones)}", styles['Normal']))
-    elements.append(Spacer(1, 12))
+    for consumo, _, _ in asignaciones:
+        estado = consumo.c_estado
+        asignaciones_por_estado[estado] = asignaciones_por_estado.get(estado, 0) + 1
+    
+    # Resumen estadístico
+    resumen_headers = ['Métrica', 'Cantidad', 'Valor', 'Observaciones']
+    resumen_data = [
+        ['Total Asignaciones', str(len(asignaciones)), formatear_valor_moneda(valor_total_asignaciones), 'Asignaciones registradas'],
+        ['Cantidad Total', str(total_cantidad), 'N/A', 'Unidades asignadas'],
+        ['Valor Promedio', f"{valor_total_asignaciones/len(asignaciones):.2f}" if asignaciones else "0", formatear_valor_moneda(valor_total_asignaciones/len(asignaciones)) if asignaciones else "$0.00", 'Por asignación']
+    ]
+    
+    # Agregar estados
+    for estado, cantidad in asignaciones_por_estado.items():
+        porcentaje = f"({(cantidad/len(asignaciones)*100):.1f}%)" if asignaciones else "(0%)"
+        resumen_data.append([f'Estado "{estado}"', str(cantidad), porcentaje, f'Asignaciones en {estado.lower()}'])
+    
+    elements.extend(crear_tabla_detallada_pdf(
+        resumen_headers, resumen_data,
+        "RESUMEN ESTADÍSTICO DE ASIGNACIONES",
+        [1.5*inch, 1*inch, 1.2*inch, 2*inch]
+    ))
 
-    # Datos de la tabla
-    data = [['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unit.', 'Valor Total', 'Estado', 'Observaciones']]
+    # Datos detallados de la tabla
+    data_headers = ['Fecha', 'Artículo', 'Personal', 'Cant.', 'V.Unit', 'V.Total', 'Estado', 'Días']
+    data = []
     
     for consumo, persona, item in asignaciones:
+        # Calcular días transcurridos
+        from datetime import datetime, date
+        if isinstance(consumo.c_fecha, date):
+            fecha_asignacion = consumo.c_fecha
+        else:
+            fecha_asignacion = consumo.c_fecha.date()
+        
+        dias_transcurridos = (datetime.now().date() - fecha_asignacion).days
+        
         data.append([
-            consumo.c_fecha.strftime('%d/%m/%Y'),
-            item.i_nombre[:20] + '...' if len(item.i_nombre) > 20 else item.i_nombre,
-            f"{persona.pe_nombre} {persona.pe_apellido}"[:25] + '...' if len(f"{persona.pe_nombre} {persona.pe_apellido}") > 25 else f"{persona.pe_nombre} {persona.pe_apellido}",
+            formatear_fecha(consumo.c_fecha),
+            truncar_texto(item.i_nombre, 15),
+            truncar_texto(f"{persona.pe_nombre} {persona.pe_apellido}", 18),
             str(consumo.c_cantidad),
-            f"${float(consumo.c_valorUnitario):.2f}",
-            f"${float(consumo.c_valorTotal):.2f}",
+            formatear_valor_moneda(consumo.c_valorUnitario),
+            formatear_valor_moneda(consumo.c_valorTotal),
             consumo.c_estado,
-            (consumo.c_observaciones or '')[:20] + '...' if consumo.c_observaciones and len(consumo.c_observaciones) > 20 else (consumo.c_observaciones or 'Ninguna')
+            str(dias_transcurridos)
         ])
 
-    # Crear tabla
-    table = Table(data, colWidths=[0.8*inch, 1.8*inch, 1.5*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 1.4*inch])
-    
-    # Aplicar estilo estandarizado
-    aplicar_estilo_tabla_pdf(table)
-    
-    elements.append(table)
+    # Crear tabla detallada de asignaciones
+    elements.extend(crear_tabla_detallada_pdf(
+        data_headers, data,
+        "HISTORIAL DETALLADO DE ASIGNACIONES",
+        [0.8*inch, 1.5*inch, 1.5*inch, 0.5*inch, 0.7*inch, 0.8*inch, 0.8*inch, 0.5*inch]
+    ))
 
     # Construir PDF
     doc.build(elements)
@@ -1258,7 +1401,7 @@ def _exportar_asignaciones_pdf(asignaciones):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Asignaciones_Detallado_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
