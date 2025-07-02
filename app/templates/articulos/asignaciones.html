@@ -47,6 +47,7 @@
                                 <option value="Devuelto" {% if request.args.get('estado') == 'Devuelto' %}selected{% endif %}>Devuelto</option>
                                 <option value="Perdido" {% if request.args.get('estado') == 'Perdido' %}selected{% endif %}>Perdido</option>
                                 <option value="Dañado" {% if request.args.get('estado') == 'Dañado' %}selected{% endif %}>Dañado</option>
+                                <option value="Finalizado" {% if request.args.get('estado') == 'Finalizado' %}selected{% endif %}>Finalizado</option>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -134,6 +135,8 @@
                                         <span class="badge bg-secondary">{{ consumo.c_estado }}</span>
                                     {% elif consumo.c_estado == 'Perdido' %}
                                         <span class="badge bg-danger">{{ consumo.c_estado }}</span>
+                                    {% elif consumo.c_estado == 'Finalizado' %}
+                                        <span class="badge bg-primary">{{ consumo.c_estado }}</span>
                                     {% else %}
                                         <span class="badge bg-warning">{{ consumo.c_estado }}</span>
                                     {% endif %}
@@ -209,13 +212,15 @@
                                                     <ul class="list-unstyled">
                                                         <li><strong>Fecha:</strong> {{ consumo.c_fecha.strftime('%d/%m/%Y') }}</li>
                                                         <li><strong>Hora:</strong> {{ consumo.c_hora.strftime('%H:%M:%S') if consumo.c_hora else 'No registrada' }}</li>
-                                                        <li><strong>Estado:</strong> 
+                                                        <li><strong>Estado:</strong>
                                                             {% if consumo.c_estado == 'Asignado' %}
                                                                 <span class="badge bg-success">{{ consumo.c_estado }}</span>
                                                             {% elif consumo.c_estado == 'Devuelto' %}
                                                                 <span class="badge bg-secondary">{{ consumo.c_estado }}</span>
                                                             {% elif consumo.c_estado == 'Perdido' %}
                                                                 <span class="badge bg-danger">{{ consumo.c_estado }}</span>
+                                                            {% elif consumo.c_estado == 'Finalizado' %}
+                                                                <span class="badge bg-primary">{{ consumo.c_estado }}</span>
                                                             {% else %}
                                                                 <span class="badge bg-warning">{{ consumo.c_estado }}</span>
                                                             {% endif %}
@@ -267,6 +272,8 @@
                                                         <option value="">Seleccionar estado...</option>
                                                         <option value="Devuelto">Devuelto</option>
                                                         <option value="Perdido">Perdido</option>
+                                                        <option value="Dañado">Dañado</option>
+                                                        <option value="Finalizado">Finalizado</option>
                                                     </select>
                                                 </div>
                                                 <div class="mb-3">

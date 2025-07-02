@@ -606,21 +606,19 @@ def cambiar_estado_asignacion(consumo_id):
         observaciones = request.form.get('observaciones', '')
         estado_anterior = consumo.c_estado
         
-        # Si se marca como "Devuelto", retornar stock (solo cantidad física, sin movimientos)
+        # Solo "Devuelto" retorna stock al inventario
         if nuevo_estado == 'Devuelto' and estado_anterior != 'Devuelto':
             item = Item.query.get(consumo.i_id)
             if item:
-                # Solo retornar la cantidad física al stock, sin registrar movimientos
-                # Esto no afecta valores históricos ni calculados
+                # Solo retornar la cantidad física al stock
                 item.i_cantidad += consumo.c_cantidad
                 consumo.c_fecha_devolucion = datetime.utcnow()
         
-        # Si se cambia de "Devuelto" a otro estado, descontar stock nuevamente
+        # Si se cambia de "Devuelto" a cualquier otro estado, descontar stock
         elif estado_anterior == 'Devuelto' and nuevo_estado != 'Devuelto':
             item = Item.query.get(consumo.i_id)
             if item:
                 if item.i_cantidad >= consumo.c_cantidad:
-                    # Solo descontar la cantidad física del stock, sin registrar movimientos
                     item.i_cantidad -= consumo.c_cantidad
                     consumo.c_fecha_devolucion = None
                 else:

@@ -149,7 +149,7 @@ class Consumo(BaseModel):
     c_valorUnitario = db.Column(db.Numeric(10, 2), nullable=False)
     c_valorTotal = db.Column(db.Numeric(10, 2), nullable=False)
     c_observaciones = db.Column(db.String(500))
-    c_estado = db.Column(db.String(20), default='Asignado')  # Asignado, Devuelto, Perdido, Dañado
+    c_estado = db.Column(db.String(20), default='Asignado')  # Asignado, Devuelto, Perdido, Dañado, Finalizado
     c_fecha_devolucion = db.Column(db.DateTime)  # Fecha cuando se marcó como devuelto
     c_puede_editar = db.Column(db.Boolean, default=True)  # Si se puede editar (48 horas)
     pe_id = db.Column(db.Integer, db.ForeignKey('tb_persona.id'), nullable=False)
