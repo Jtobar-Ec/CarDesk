@@ -7,13 +7,16 @@ from app.database.models import Articulo, Item, Consumo, Persona
 from app.database import db
 import io
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.lib.units import inch
 from datetime import datetime
+from app.utils.export_utils import (
+    crear_cabecera_excel, crear_estilos_excel, crear_cabecera_pdf,
+    crear_estilos_pdf, aplicar_estilo_tabla_pdf, ajustar_columnas_excel
+)
 
 bp = Blueprint('articulos', __name__)
 articulo_service = ArticuloService()
@@ -88,7 +91,7 @@ def listar_articulos():
                          proveedores=proveedores)
 
 def _exportar_excel(articulos):
-    """Exporta artículos a Excel en orientación horizontal"""
+    """Exporta artículos a Excel con cabecera institucional"""
     wb = Workbook()
     ws = wb.active
     ws.title = "Artículos"
@@ -96,24 +99,27 @@ def _exportar_excel(articulos):
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
-    # Encabezados
+    # Crear cabecera institucional
+    current_row = crear_cabecera_excel(ws, "Reporte de Artículos")
+    
+    # Obtener estilos
+    estilos = crear_estilos_excel()
+    
+    # Encabezados de datos
     headers = ['Código', 'Nombre', 'Stock Actual', 'Valor Unitario', 'Valor Total',
                'Stock Mínimo', 'Stock Máximo', 'Estado', 'Cuenta Contable', 'Fecha Creación']
     
-    # Estilo para encabezados
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
-    
     # Escribir encabezados
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
     # Escribir datos
-    for row, (articulo, item) in enumerate(articulos, 2):
+    for articulo, item in articulos:
         # Determinar estado
         if item.i_cantidad < articulo.a_stockMin:
             estado = "Crítico"
@@ -122,29 +128,27 @@ def _exportar_excel(articulos):
         else:
             estado = "Normal"
         
-        ws.cell(row=row, column=1, value=item.i_codigo)
-        ws.cell(row=row, column=2, value=item.i_nombre)
-        ws.cell(row=row, column=3, value=item.i_cantidad)
-        ws.cell(row=row, column=4, value=float(item.i_vUnitario))
-        ws.cell(row=row, column=5, value=float(item.i_vTotal))
-        ws.cell(row=row, column=6, value=articulo.a_stockMin)
-        ws.cell(row=row, column=7, value=articulo.a_stockMax)
-        ws.cell(row=row, column=8, value=estado)
-        ws.cell(row=row, column=9, value=articulo.a_c_contable)
-        ws.cell(row=row, column=10, value=item.created_at.strftime('%Y-%m-%d'))
+        ws.cell(row=current_row, column=1, value=item.i_codigo)
+        ws.cell(row=current_row, column=2, value=item.i_nombre)
+        ws.cell(row=current_row, column=3, value=item.i_cantidad)
+        ws.cell(row=current_row, column=4, value=float(item.i_vUnitario))
+        ws.cell(row=current_row, column=5, value=float(item.i_vTotal))
+        ws.cell(row=current_row, column=6, value=articulo.a_stockMin)
+        ws.cell(row=current_row, column=7, value=articulo.a_stockMax)
+        ws.cell(row=current_row, column=8, value=estado)
+        ws.cell(row=current_row, column=9, value=articulo.a_c_contable)
+        ws.cell(row=current_row, column=10, value=item.created_at.strftime('%Y-%m-%d'))
+        
+        # Aplicar estilos a los datos
+        for col in range(1, 11):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        
+        current_row += 1
     
     # Ajustar ancho de columnas
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except Exception:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+    ajustar_columnas_excel(ws)
     
     # Crear respuesta
     output = io.BytesIO()
@@ -153,44 +157,28 @@ def _exportar_excel(articulos):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=articulos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Articulos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_pdf(articulos):
-    """Exporta artículos a PDF en orientación horizontal"""
+    """Exporta artículos a PDF con cabecera institucional"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
-    styles = getSampleStyleSheet()
     
-    # Título
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=30,
-        alignment=1  # Centrado
-    )
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf("Reporte de Artículos"))
     
-    title = Paragraph("REPORTE DE ARTÍCULOS", title_style)
-    elements.append(title)
-    elements.append(Spacer(1, 12))
+    # Obtener estilos
+    styles = crear_estilos_pdf()
     
-    # Información del reporte
-    info_style = ParagraphStyle(
-        'InfoStyle',
-        parent=styles['Normal'],
-        fontSize=10,
-        spaceAfter=20
-    )
-    
-    fecha_reporte = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    info = Paragraph(f"<b>Fecha del reporte:</b> {fecha_reporte}<br/><b>Total de artículos:</b> {len(articulos)}", info_style)
-    elements.append(info)
+    # Título de la sección de datos
+    elements.append(Paragraph("LISTADO DE ARTÍCULOS", styles['TituloSeccion']))
+    elements.append(Paragraph(f"Total de registros: {len(articulos)}", styles['Normal']))
     elements.append(Spacer(1, 12))
     
     # Datos de la tabla
@@ -219,20 +207,8 @@ def _exportar_pdf(articulos):
     # Crear tabla
     table = Table(data, colWidths=[0.8*inch, 2.2*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.7*inch, 0.8*inch])
     
-    # Estilo de la tabla
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
+    # Aplicar estilo estandarizado
+    aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     
@@ -242,7 +218,7 @@ def _exportar_pdf(articulos):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=articulos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Articulos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
@@ -503,9 +479,11 @@ def registrar_entrada(articulo_id):
         
         articulo, item = resultado
         
+        from datetime import datetime
         articulo_service.registrar_entrada(
             item.id, cantidad, valor_unitario, usuario_id,
-            proveedor_id=proveedor_id, observaciones=observaciones
+            proveedor_id=proveedor_id, observaciones=observaciones,
+            fecha_hora=datetime.now()
         )
         
         flash('Entrada registrada exitosamente', 'success')
@@ -517,14 +495,16 @@ def registrar_entrada(articulo_id):
 @bp.route('/asignaciones')
 @login_required
 def listar_asignaciones():
-    """Lista todas las asignaciones de artículos a personal con filtros"""
+    """Lista todas las asignaciones de artículos a personal con filtros y paginación"""
     from app.database.models import Consumo, Persona, Item
     from app import db
     
-    # Obtener filtros
+    # Obtener filtros y paginación
     estado = request.args.get('estado', '').strip()
     articulo = request.args.get('articulo', '').strip()
     persona = request.args.get('persona', '').strip()
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
     
     # Query base
     query = db.session.query(Consumo, Persona, Item).join(
@@ -553,10 +533,13 @@ def listar_asignaciones():
             )
         )
     
-    # Ordenar resultados
-    asignaciones = query.order_by(Consumo.c_fecha.desc(), Consumo.c_hora.desc()).all()
+    # Ordenar por fecha descendente (más recientes primero) y paginar
+    pagination = query.order_by(Consumo.c_fecha.desc(), Consumo.c_hora.desc())\
+                     .paginate(page=page, per_page=per_page, error_out=False)
     
-    return render_template('articulos/asignaciones.html', asignaciones=asignaciones)
+    return render_template('articulos/asignaciones.html',
+                         asignaciones=pagination.items,
+                         pagination=pagination)
 
 @bp.route('/asignaciones/<int:persona_id>')
 @login_required
@@ -571,17 +554,22 @@ def asignaciones_por_persona(persona_id):
         flash('Persona no encontrada', 'error')
         return redirect(url_for('articulos.listar_asignaciones'))
     
-    # Obtener asignaciones de la persona
-    asignaciones = db.session.query(Consumo, Persona, Item).join(
+    # Paginación
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # Obtener asignaciones de la persona con paginación
+    pagination = db.session.query(Consumo, Persona, Item).join(
         Persona, Consumo.pe_id == Persona.id
     ).join(
         Item, Consumo.i_id == Item.id
     ).filter(Consumo.pe_id == persona_id).order_by(
         Consumo.c_fecha.desc(), Consumo.c_hora.desc()
-    ).all()
+    ).paginate(page=page, per_page=per_page, error_out=False)
     
     return render_template('articulos/asignaciones.html',
-                         asignaciones=asignaciones,
+                         asignaciones=pagination.items,
+                         pagination=pagination,
                          persona_filtro=persona)
 
 @bp.route('/asignaciones/<int:consumo_id>/cambiar-estado', methods=['POST'])
@@ -648,14 +636,14 @@ def cambiar_estado_asignacion(consumo_id):
 def listar_movimientos():
     """Lista todos los movimientos de inventario con filtros y paginación"""
     from app.database.models import MovimientoDetalle, Item, Usuario, Entrada, Proveedor
+    from datetime import datetime
     
     # Parámetros de filtrado
     buscar = request.args.get('buscar', '').strip()
     tipo = request.args.get('tipo', '')
     fecha_desde = request.args.get('fecha_desde', '')
     fecha_hasta = request.args.get('fecha_hasta', '')
-    ordenar = request.args.get('ordenar', 'fecha_desc')
-    per_page = int(request.args.get('per_page', 25))
+    per_page = 20
     page = int(request.args.get('page', 1))
     export_format = request.args.get('export')
     
@@ -681,7 +669,6 @@ def listar_movimientos():
     
     if fecha_desde:
         try:
-            from datetime import datetime
             fecha_desde_obj = datetime.strptime(fecha_desde, '%Y-%m-%d').date()
             query = query.filter(MovimientoDetalle.m_fecha >= fecha_desde_obj)
         except ValueError:
@@ -689,21 +676,13 @@ def listar_movimientos():
     
     if fecha_hasta:
         try:
-            from datetime import datetime
             fecha_hasta_obj = datetime.strptime(fecha_hasta, '%Y-%m-%d').date()
             query = query.filter(MovimientoDetalle.m_fecha <= fecha_hasta_obj)
         except ValueError:
             pass
     
-    # Aplicar ordenamiento
-    if ordenar == 'articulo_asc':
-        query = query.order_by(asc(Item.i_nombre))
-    elif ordenar == 'tipo_asc':
-        query = query.order_by(asc(MovimientoDetalle.m_tipo))
-    elif ordenar == 'valor_desc':
-        query = query.order_by(desc(MovimientoDetalle.m_valorTotal))
-    else:  # fecha_desc (por defecto)
-        query = query.order_by(desc(MovimientoDetalle.m_fecha), desc(MovimientoDetalle.id))
+    # Ordenar por fecha descendente
+    query = query.order_by(desc(MovimientoDetalle.m_fecha), desc(MovimientoDetalle.id))
     
     # Manejar exportaciones
     if export_format in ['excel', 'pdf']:
@@ -723,7 +702,7 @@ def listar_movimientos():
                          pagination=pagination)
 
 def _exportar_movimientos_excel(movimientos):
-    """Exporta movimientos a Excel"""
+    """Exporta movimientos a Excel con cabecera institucional"""
     wb = Workbook()
     ws = wb.active
     ws.title = "Movimientos"
@@ -731,52 +710,53 @@ def _exportar_movimientos_excel(movimientos):
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
-    # Encabezados
+    # Crear cabecera institucional
+    current_row = crear_cabecera_excel(ws, "Reporte de Movimientos de Inventario")
+    
+    # Obtener estilos
+    estilos = crear_estilos_excel()
+    
+    # Encabezados de datos
     headers = ['Fecha', 'Artículo', 'Código', 'Tipo', 'Cantidad', 'Valor Unit.',
                'Valor Total', 'Usuario', 'Proveedor', 'Observaciones']
     
-    # Estilo para encabezados
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
-    
     # Escribir encabezados
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
     # Escribir datos
-    for row, (movimiento, item, usuario) in enumerate(movimientos, 2):
+    for movimiento, item, usuario in movimientos:
         # Obtener proveedor si existe
         proveedor_nombre = ""
         if movimiento.e_id and movimiento.entrada and movimiento.entrada.proveedor:
             proveedor_nombre = movimiento.entrada.proveedor.p_razonsocial
         
-        ws.cell(row=row, column=1, value=movimiento.m_fecha.strftime('%Y-%m-%d'))
-        ws.cell(row=row, column=2, value=item.i_nombre)
-        ws.cell(row=row, column=3, value=item.i_codigo)
-        ws.cell(row=row, column=4, value=movimiento.m_tipo.title())
-        ws.cell(row=row, column=5, value=movimiento.m_cantidad)
-        ws.cell(row=row, column=6, value=float(movimiento.m_valorUnitario))
-        ws.cell(row=row, column=7, value=float(movimiento.m_valorTotal))
-        ws.cell(row=row, column=8, value=usuario.u_username)
-        ws.cell(row=row, column=9, value=proveedor_nombre)
-        ws.cell(row=row, column=10, value=movimiento.m_observaciones or '')
+        ws.cell(row=current_row, column=1, value=movimiento.m_fecha.strftime('%Y-%m-%d'))
+        ws.cell(row=current_row, column=2, value=item.i_nombre)
+        ws.cell(row=current_row, column=3, value=item.i_codigo)
+        ws.cell(row=current_row, column=4, value=movimiento.m_tipo.title())
+        ws.cell(row=current_row, column=5, value=movimiento.m_cantidad)
+        ws.cell(row=current_row, column=6, value=float(movimiento.m_valorUnitario))
+        ws.cell(row=current_row, column=7, value=float(movimiento.m_valorTotal))
+        ws.cell(row=current_row, column=8, value=usuario.u_username)
+        ws.cell(row=current_row, column=9, value=proveedor_nombre)
+        ws.cell(row=current_row, column=10, value=movimiento.m_observaciones or '')
+        
+        # Aplicar estilos a los datos
+        for col in range(1, 11):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        
+        current_row += 1
     
     # Ajustar ancho de columnas
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except Exception:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+    ajustar_columnas_excel(ws)
     
     # Crear respuesta
     output = io.BytesIO()
@@ -785,44 +765,28 @@ def _exportar_movimientos_excel(movimientos):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=movimientos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Movimientos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_movimientos_pdf(movimientos):
-    """Exporta movimientos a PDF"""
+    """Exporta movimientos a PDF con cabecera institucional"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
-    styles = getSampleStyleSheet()
     
-    # Título
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=30,
-        alignment=1
-    )
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf("Reporte de Movimientos de Inventario"))
     
-    title = Paragraph("REPORTE DE MOVIMIENTOS DE INVENTARIO", title_style)
-    elements.append(title)
-    elements.append(Spacer(1, 12))
+    # Obtener estilos
+    styles = crear_estilos_pdf()
     
-    # Información del reporte
-    info_style = ParagraphStyle(
-        'InfoStyle',
-        parent=styles['Normal'],
-        fontSize=10,
-        spaceAfter=20
-    )
-    
-    fecha_reporte = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    info = Paragraph(f"<b>Fecha del reporte:</b> {fecha_reporte}<br/><b>Total de movimientos:</b> {len(movimientos)}", info_style)
-    elements.append(info)
+    # Título de la sección de datos
+    elements.append(Paragraph("LISTADO DE MOVIMIENTOS", styles['TituloSeccion']))
+    elements.append(Paragraph(f"Total de registros: {len(movimientos)}", styles['Normal']))
     elements.append(Spacer(1, 12))
     
     # Datos de la tabla
@@ -843,20 +807,8 @@ def _exportar_movimientos_pdf(movimientos):
     # Crear tabla
     table = Table(data, colWidths=[0.8*inch, 2.0*inch, 0.7*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 1.8*inch])
     
-    # Estilo de la tabla
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 7),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
+    # Aplicar estilo estandarizado
+    aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     
@@ -866,12 +818,12 @@ def _exportar_movimientos_pdf(movimientos):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=movimientos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Movimientos_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
 def _exportar_articulos_excel(articulo, item, movimientos, saldo_calculado):
-    """Exporta detalle de artículo a Excel"""
+    """Exporta detalle de artículo a Excel con cabecera institucional"""
     wb = Workbook()
     ws = wb.active
     ws.title = f"Detalle {item.i_codigo}"
@@ -879,51 +831,78 @@ def _exportar_articulos_excel(articulo, item, movimientos, saldo_calculado):
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
+    # Crear cabecera institucional
+    current_row = crear_cabecera_excel(ws, f"Detalle de Artículo - {item.i_codigo}")
+    
+    # Obtener estilos
+    estilos = crear_estilos_excel()
+    
     # Información del artículo
-    ws.cell(row=1, column=1, value="DETALLE DE ARTÍCULO").font = Font(bold=True, size=14)
-    ws.cell(row=3, column=1, value="Código:").font = Font(bold=True)
-    ws.cell(row=3, column=2, value=item.i_codigo)
-    ws.cell(row=4, column=1, value="Nombre:").font = Font(bold=True)
-    ws.cell(row=4, column=2, value=item.i_nombre)
-    ws.cell(row=5, column=1, value="Stock Actual:").font = Font(bold=True)
-    ws.cell(row=5, column=2, value=item.i_cantidad)
-    ws.cell(row=6, column=1, value="Saldo Calculado:").font = Font(bold=True)
-    ws.cell(row=6, column=2, value=saldo_calculado)
-    ws.cell(row=7, column=1, value="Valor Unitario:").font = Font(bold=True)
-    ws.cell(row=7, column=2, value=float(item.i_vUnitario))
+    info_headers = ['Campo', 'Valor']
+    for col, header in enumerate(info_headers, 1):
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
+    
+    # Datos del artículo
+    info_data = [
+        ['Código', item.i_codigo],
+        ['Nombre', item.i_nombre],
+        ['Stock Actual', item.i_cantidad],
+        ['Saldo Calculado', saldo_calculado],
+        ['Valor Unitario', f"${float(item.i_vUnitario):.2f}"],
+        ['Stock Mínimo', articulo.a_stockMin],
+        ['Stock Máximo', articulo.a_stockMax],
+        ['Cuenta Contable', articulo.a_c_contable]
+    ]
+    
+    for campo, valor in info_data:
+        ws.cell(row=current_row, column=1, value=campo).font = estilos['data_font']
+        ws.cell(row=current_row, column=2, value=valor).font = estilos['data_font']
+        current_row += 1
+    
+    current_row += 2  # Espacio antes de movimientos
+    
+    # Título de movimientos
+    ws.cell(row=current_row, column=1, value="HISTORIAL DE MOVIMIENTOS").font = estilos['header_font']
+    current_row += 2
     
     # Encabezados de movimientos
-    row_start = 10
+    row_start = current_row
     headers = ['Fecha', 'Tipo', 'Cantidad', 'Valor Unit.', 'Valor Total', 'Usuario', 'Observaciones']
     
+    # Escribir encabezados de movimientos
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=row_start, column=col, value=header)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center")
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    row_start += 1
     
-    # Datos de movimientos
-    for row, mov in enumerate(movimientos, row_start + 1):
-        ws.cell(row=row, column=1, value=mov.m_fecha.strftime('%Y-%m-%d'))
-        ws.cell(row=row, column=2, value=mov.m_tipo.title())
-        ws.cell(row=row, column=3, value=mov.m_cantidad)
-        ws.cell(row=row, column=4, value=float(mov.m_valorUnitario))
-        ws.cell(row=row, column=5, value=float(mov.m_valorTotal))
-        ws.cell(row=row, column=6, value=mov.u_id)
-        ws.cell(row=row, column=7, value=mov.m_observaciones or '')
+    # Escribir datos de movimientos
+    for mov in movimientos:
+        ws.cell(row=row_start, column=1, value=mov.m_fecha.strftime('%Y-%m-%d'))
+        ws.cell(row=row_start, column=2, value=mov.m_tipo.title())
+        ws.cell(row=row_start, column=3, value=mov.m_cantidad)
+        ws.cell(row=row_start, column=4, value=float(mov.m_valorUnitario))
+        ws.cell(row=row_start, column=5, value=float(mov.m_valorTotal))
+        ws.cell(row=row_start, column=6, value=mov.u_id)
+        ws.cell(row=row_start, column=7, value=mov.m_observaciones or '')
+        
+        # Aplicar estilos a los datos
+        for col in range(1, 8):
+            cell = ws.cell(row=row_start, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        
+        row_start += 1
     
     # Ajustar ancho de columnas
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except Exception:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+    ajustar_columnas_excel(ws)
     
     # Crear respuesta
     output = io.BytesIO()
@@ -932,31 +911,27 @@ def _exportar_articulos_excel(articulo, item, movimientos, saldo_calculado):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=detalle_{item.i_codigo}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{item.i_codigo}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_articulos_pdf(articulo, item, movimientos, saldo_calculado):
-    """Exporta detalle de artículo a PDF"""
+    """Exporta detalle de artículo a PDF con cabecera institucional"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
-    styles = getSampleStyleSheet()
     
-    # Título
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=30,
-        alignment=1
-    )
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf(f"Detalle de Artículo - {item.i_codigo}"))
     
-    title = Paragraph(f"DETALLE DE ARTÍCULO - {item.i_codigo}", title_style)
-    elements.append(title)
+    # Obtener estilos
+    styles = crear_estilos_pdf()
+    
+    # Título de la sección de información
+    elements.append(Paragraph("INFORMACIÓN DEL ARTÍCULO", styles['TituloSeccion']))
     elements.append(Spacer(1, 12))
     
     # Información del artículo
@@ -975,14 +950,15 @@ def _exportar_articulos_pdf(articulo, item, movimientos, saldo_calculado):
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
     ]))
     
     elements.append(info_table)
     elements.append(Spacer(1, 20))
     
     # Título de movimientos
-    mov_title = Paragraph("HISTORIAL DE MOVIMIENTOS", styles['Heading2'])
-    elements.append(mov_title)
+    elements.append(Paragraph("HISTORIAL DE MOVIMIENTOS", styles['TituloSeccion']))
+    elements.append(Paragraph(f"Mostrando los últimos 20 movimientos", styles['Normal']))
     elements.append(Spacer(1, 12))
     
     # Tabla de movimientos
@@ -990,7 +966,7 @@ def _exportar_articulos_pdf(articulo, item, movimientos, saldo_calculado):
     
     for mov in movimientos[:20]:  # Limitar a 20 movimientos más recientes
         mov_data.append([
-            mov.m_fecha.strftime('%Y-%m-%d'),
+            mov.m_fecha.strftime('%d/%m/%Y'),
             mov.m_tipo.title(),
             str(mov.m_cantidad),
             f"${float(mov.m_valorUnitario):.2f}",
@@ -999,19 +975,9 @@ def _exportar_articulos_pdf(articulo, item, movimientos, saldo_calculado):
         ])
     
     mov_table = Table(mov_data, colWidths=[0.8*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.8*inch, 2.5*inch])
-    mov_table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
+    
+    # Aplicar estilo estandarizado
+    aplicar_estilo_tabla_pdf(mov_table)
     
     elements.append(mov_table)
     
@@ -1021,7 +987,7 @@ def _exportar_articulos_pdf(articulo, item, movimientos, saldo_calculado):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=detalle_{item.i_codigo}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{item.i_codigo}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
@@ -1104,142 +1070,116 @@ def exportar_asignaciones():
 
 
 def _exportar_asignaciones_excel(asignaciones):
-    """Exporta el historial de asignaciones a Excel"""
+    """Exporta el historial de asignaciones a Excel con cabecera institucional"""
     wb = Workbook()
     ws = wb.active
     ws.title = "Asignaciones"
-
+    
+    # Configurar orientación horizontal
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    
+    # Crear cabecera institucional
+    current_row = crear_cabecera_excel(ws, "Reporte de Asignaciones de Artículos")
+    
+    # Obtener estilos
+    estilos = crear_estilos_excel()
+    
+    # Encabezados de datos
     headers = ['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unitario', 'Valor Total', 'Estado', 'Observaciones']
+    
+    # Escribir encabezados
     for col, header in enumerate(headers, 1):
-        ws.cell(row=1, column=col, value=header)
-
-    for row, (consumo, persona, item) in enumerate(asignaciones, 2):
-        ws.cell(row=row, column=1, value=consumo.c_fecha.strftime('%Y-%m-%d'))
-        ws.cell(row=row, column=2, value=item.i_nombre)
-        ws.cell(row=row, column=3, value=f"{persona.pe_nombre} {persona.pe_apellido}")
-        ws.cell(row=row, column=4, value=consumo.c_cantidad)
-        ws.cell(row=row, column=5, value=consumo.c_valorUnitario)
-        ws.cell(row=row, column=6, value=consumo.c_valorTotal)
-        ws.cell(row=row, column=7, value=consumo.c_estado)
-        ws.cell(row=row, column=8, value=consumo.c_observaciones)
-
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
+    
+    # Escribir datos
+    for consumo, persona, item in asignaciones:
+        ws.cell(row=current_row, column=1, value=consumo.c_fecha.strftime('%Y-%m-%d'))
+        ws.cell(row=current_row, column=2, value=item.i_nombre)
+        ws.cell(row=current_row, column=3, value=f"{persona.pe_nombre} {persona.pe_apellido}")
+        ws.cell(row=current_row, column=4, value=consumo.c_cantidad)
+        ws.cell(row=current_row, column=5, value=float(consumo.c_valorUnitario))
+        ws.cell(row=current_row, column=6, value=float(consumo.c_valorTotal))
+        ws.cell(row=current_row, column=7, value=consumo.c_estado)
+        ws.cell(row=current_row, column=8, value=consumo.c_observaciones or '')
+        
+        # Aplicar estilos a los datos
+        for col in range(1, 9):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        
+        current_row += 1
+    
+    # Ajustar ancho de columnas
+    ajustar_columnas_excel(ws)
+    
+    # Crear respuesta
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
+    
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    
     return response
 
 
 def _exportar_asignaciones_pdf(asignaciones):
-    """Exporta el historial de asignaciones a PDF"""
+    """Exporta el historial de asignaciones a PDF con cabecera institucional"""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
+                          rightMargin=0.5*inch, leftMargin=0.5*inch,
+                          topMargin=0.5*inch, bottomMargin=0.5*inch)
 
     elements = []
-    styles = getSampleStyleSheet()
-    title = Paragraph("Historial de Asignaciones", styles['Heading1'])
-    elements.append(title)
+    
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf("Reporte de Asignaciones de Artículos"))
+    
+    # Obtener estilos
+    styles = crear_estilos_pdf()
+    
+    # Título de la sección de datos
+    elements.append(Paragraph("LISTADO DE ASIGNACIONES", styles['TituloSeccion']))
+    elements.append(Paragraph(f"Total de registros: {len(asignaciones)}", styles['Normal']))
+    elements.append(Spacer(1, 12))
 
-    data = [['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unitario', 'Valor Total', 'Estado', 'Observaciones']]
+    # Datos de la tabla
+    data = [['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unit.', 'Valor Total', 'Estado', 'Observaciones']]
+    
     for consumo, persona, item in asignaciones:
         data.append([
-            consumo.c_fecha.strftime('%Y-%m-%d'),
-            item.i_nombre,
-            f"{persona.pe_nombre} {persona.pe_apellido}",
-            consumo.c_cantidad,
-            f"${consumo.c_valorUnitario:.2f}",
-            f"${consumo.c_valorTotal:.2f}",
+            consumo.c_fecha.strftime('%d/%m/%Y'),
+            item.i_nombre[:20] + '...' if len(item.i_nombre) > 20 else item.i_nombre,
+            f"{persona.pe_nombre} {persona.pe_apellido}"[:25] + '...' if len(f"{persona.pe_nombre} {persona.pe_apellido}") > 25 else f"{persona.pe_nombre} {persona.pe_apellido}",
+            str(consumo.c_cantidad),
+            f"${float(consumo.c_valorUnitario):.2f}",
+            f"${float(consumo.c_valorTotal):.2f}",
             consumo.c_estado,
-            consumo.c_observaciones or 'Ninguna'
+            (consumo.c_observaciones or '')[:20] + '...' if consumo.c_observaciones and len(consumo.c_observaciones) > 20 else (consumo.c_observaciones or 'Ninguna')
         ])
 
-    table = Table(data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-    ]))
+    # Crear tabla
+    table = Table(data, colWidths=[0.8*inch, 1.8*inch, 1.5*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 1.4*inch])
+    
+    # Aplicar estilo estandarizado
+    aplicar_estilo_tabla_pdf(table)
+    
     elements.append(table)
 
+    # Construir PDF
     doc.build(elements)
     buffer.seek(0)
+    
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    
     return response
 
-def _exportar_asignaciones_excel(asignaciones):
-    """Exporta el historial de asignaciones a Excel"""
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Asignaciones"
-
-    headers = ['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unitario', 'Valor Total', 'Estado', 'Observaciones']
-    for col, header in enumerate(headers, 1):
-        ws.cell(row=1, column=col, value=header)
-
-    for row, (consumo, persona, item) in enumerate(asignaciones, 2):
-        ws.cell(row=row, column=1, value=consumo.c_fecha.strftime('%Y-%m-%d'))
-        ws.cell(row=row, column=2, value=item.i_nombre)
-        ws.cell(row=row, column=3, value=f"{persona.pe_nombre} {persona.pe_apellido}")
-        ws.cell(row=row, column=4, value=consumo.c_cantidad)
-        ws.cell(row=row, column=5, value=consumo.c_valorUnitario)
-        ws.cell(row=row, column=6, value=consumo.c_valorTotal)
-        ws.cell(row=row, column=7, value=consumo.c_estado)
-        ws.cell(row=row, column=8, value=consumo.c_observaciones)
-
-    output = io.BytesIO()
-    wb.save(output)
-    output.seek(0)
-    response = make_response(output.read())
-    response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
-    return response
-
-def _exportar_asignaciones_pdf(asignaciones):
-    """Exporta el historial de asignaciones a PDF"""
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(A4))
-
-    elements = []
-    styles = getSampleStyleSheet()
-    title = Paragraph("Historial de Asignaciones", styles['Heading1'])
-    elements.append(title)
-
-    data = [['Fecha', 'Artículo', 'Personal', 'Cantidad', 'Valor Unitario', 'Valor Total', 'Estado', 'Observaciones']]
-    for consumo, persona, item in asignaciones:
-        data.append([
-            consumo.c_fecha.strftime('%Y-%m-%d'),
-            item.i_nombre,
-            f"{persona.pe_nombre} {persona.pe_apellido}",
-            consumo.c_cantidad,
-            f"${consumo.c_valorUnitario:.2f}",
-            f"${consumo.c_valorTotal:.2f}",
-            consumo.c_estado,
-            consumo.c_observaciones or 'Ninguna'
-        ])
-
-    table = Table(data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-    ]))
-    elements.append(table)
-
-    doc.build(elements)
-    buffer.seek(0)
-    response = make_response(buffer.read())
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=asignaciones_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
-    return response

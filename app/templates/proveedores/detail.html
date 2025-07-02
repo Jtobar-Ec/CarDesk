@@ -14,7 +14,9 @@
                     <i class="fas fa-edit"></i> Editar
                 </a>
                 <button type="button" class="btn btn-danger me-2"
-                        onclick="confirmarEliminacion({{ proveedor.id }}, '{{ proveedor.p_razonsocial|escapejs }}')">
+                        data-proveedor-id="{{ proveedor.id }}"
+                        data-proveedor-nombre="{{ proveedor.p_razonsocial }}"
+                        onclick="confirmarEliminacion(this.dataset.proveedorId, this.dataset.proveedorNombre)">
                     <i class="fas fa-trash"></i> Eliminar
                 </button>
                 <a href="{{ url_for('proveedores.listar_proveedores') }}" class="btn btn-secondary">
@@ -115,7 +117,6 @@
                                 <th>Factura</th>
                                 <th>Descripción</th>
                                 <th>Hora</th>
-                                <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -125,11 +126,6 @@
                                 <td><code>{{ entrada.e_numFactura }}</code></td>
                                 <td>{{ entrada.e_descripcion }}</td>
                                 <td>{{ entrada.e_hora.strftime('%H:%M') if entrada.e_hora else '-' }}</td>
-                                <td>
-                                    <a href="#" class="btn btn-sm btn-outline-primary" title="Ver detalles">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -147,38 +143,6 @@
 
     <!-- Panel lateral -->
     <div class="col-md-4">
-        <!-- Acciones rápidas -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">
-                    <i class="fas fa-bolt"></i> Acciones Rápidas
-                </h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-primary" 
-                            data-bs-toggle="modal" data-bs-target="#nuevaEntradaModal">
-                        <i class="fas fa-plus"></i> Nueva Entrada
-                    </button>
-                    <a href="{{ url_for('proveedores.editar_proveedor', proveedor_id=proveedor.id) }}" 
-                       class="btn btn-outline-warning">
-                        <i class="fas fa-edit"></i> Editar Proveedor
-                    </a>
-                    <hr>
-                    {% if proveedor.p_telefono %}
-                    <a href="tel:{{ proveedor.p_telefono }}" class="btn btn-outline-success">
-                        <i class="fas fa-phone"></i> Llamar
-                    </a>
-                    {% endif %}
-                    {% if proveedor.p_correo %}
-                    <a href="mailto:{{ proveedor.p_correo }}" class="btn btn-outline-info">
-                        <i class="fas fa-envelope"></i> Enviar Email
-                    </a>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
         <!-- Estadísticas -->
         <div class="card mt-3">
             <div class="card-header">

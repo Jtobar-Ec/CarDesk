@@ -207,7 +207,7 @@ class Entrada(BaseModel):
 class MovimientoDetalle(BaseModel):
     __tablename__ = 'tb_movimiento_detalle'
     
-    m_fecha = db.Column(db.Date, nullable=False)
+    m_fecha = db.Column(db.DateTime, nullable=False)
     m_tipo = db.Column(db.String(20), nullable=False)  # 'entrada', 'salida', 'ajuste'
     m_cantidad = db.Column(db.Integer, nullable=False)
     m_valorUnitario = db.Column(db.Numeric(10, 2), nullable=False)

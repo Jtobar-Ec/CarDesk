@@ -23,13 +23,16 @@ class MovimientoRepository(BaseRepository):
         """Obtiene movimientos por tipo (entrada, salida, ajuste)"""
         return MovimientoDetalle.query.filter_by(m_tipo=tipo).order_by(MovimientoDetalle.m_fecha.desc()).all()
     
-    def crear_entrada(self, item_id, cantidad, valor_unitario, usuario_id, entrada_id=None, observaciones=None):
+    def crear_entrada(self, item_id, cantidad, valor_unitario, usuario_id, entrada_id=None, observaciones=None, fecha_hora=None):
         """Crea un movimiento de entrada"""
         valor_unitario = Decimal(str(valor_unitario))
         valor_total = Decimal(str(cantidad)) * valor_unitario
         
+        if fecha_hora is None:
+            fecha_hora = datetime.now()
+        
         movimiento = MovimientoDetalle(
-            m_fecha=date.today(),
+            m_fecha=fecha_hora,
             m_tipo='entrada',
             m_cantidad=cantidad,
             m_valorUnitario=valor_unitario,

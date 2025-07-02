@@ -53,17 +53,7 @@
                                 <input type="date" class="form-control" name="fecha_hasta"
                                        value="{{ request.args.get('fecha_hasta', '') }}">
                             </div>
-                            <div class="col-md-2">
-                                <label class="form-label">Ordenar por</label>
-                                <select class="form-select" name="ordenar">
-                                    <option value="fecha_desc" {{ 'selected' if request.args.get('ordenar') == 'fecha_desc' }}>Fecha (Reciente)</option>
-                                    <option value="fecha_asc" {{ 'selected' if request.args.get('ordenar') == 'fecha_asc' }}>Fecha (Antigua)</option>
-                                    <option value="articulo" {{ 'selected' if request.args.get('ordenar') == 'articulo' }}>Artículo</option>
-                                    <option value="tipo" {{ 'selected' if request.args.get('ordenar') == 'tipo' }}>Tipo</option>
-                                    <option value="valor" {{ 'selected' if request.args.get('ordenar') == 'valor' }}>Valor</option>
-                                </select>
-                            </div>
-                            <div class="col-md-1">
+                            <div class="col-md-3">
                                 <label class="form-label">&nbsp;</label>
                                 <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-primary">
@@ -98,7 +88,12 @@
                         <tbody>
                             {% for movimiento, item, usuario in movimientos %}
                             <tr>
-                                <td>{{ movimiento.m_fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>
+                                    <div>
+                                        <strong>{{ movimiento.m_fecha.strftime('%d/%m/%Y') }}</strong>
+                                    </div>
+                                    <small class="text-muted">{{ movimiento.m_fecha.strftime('%H:%M') }}</small>
+                                </td>
                                 <td>
                                     <a href="{{ url_for('articulos.detalle_articulo', articulo_id=item.id) }}" class="text-decoration-none">
                                         {{ item.i_nombre }}
@@ -169,7 +164,7 @@
                                 <ul class="pagination">
                                     {% if pagination.has_prev %}
                                         <li class="paginate_button page-item">
-                                            <a href="{{ url_for('articulos.listar_movimientos', page=pagination.prev_num, **request.args) }}" 
+                                            <a href="{{ url_for('articulos.listar_movimientos', page=pagination.prev_num, buscar=request.args.get('buscar', ''), tipo=request.args.get('tipo', ''), fecha_desde=request.args.get('fecha_desde', ''), fecha_hasta=request.args.get('fecha_hasta', '')) }}"
                                                class="page-link">Anterior</a>
                                         </li>
                                     {% endif %}
@@ -178,7 +173,7 @@
                                         {% if page_num %}
                                             {% if page_num != pagination.page %}
                                                 <li class="paginate_button page-item">
-                                                    <a href="{{ url_for('articulos.listar_movimientos', page=page_num, **request.args) }}" 
+                                                    <a href="{{ url_for('articulos.listar_movimientos', page=page_num, buscar=request.args.get('buscar', ''), tipo=request.args.get('tipo', ''), fecha_desde=request.args.get('fecha_desde', ''), fecha_hasta=request.args.get('fecha_hasta', '')) }}"
                                                        class="page-link">{{ page_num }}</a>
                                                 </li>
                                             {% else %}
@@ -195,7 +190,7 @@
                                     
                                     {% if pagination.has_next %}
                                         <li class="paginate_button page-item">
-                                            <a href="{{ url_for('articulos.listar_movimientos', page=pagination.next_num, **request.args) }}" 
+                                            <a href="{{ url_for('articulos.listar_movimientos', page=pagination.next_num, buscar=request.args.get('buscar', ''), tipo=request.args.get('tipo', ''), fecha_desde=request.args.get('fecha_desde', ''), fecha_hasta=request.args.get('fecha_hasta', '')) }}"
                                                class="page-link">Siguiente</a>
                                         </li>
                                     {% endif %}

@@ -13,6 +13,10 @@ from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from app.utils.export_utils import (
+    crear_cabecera_excel, crear_estilos_excel, crear_cabecera_pdf,
+    crear_estilos_pdf, aplicar_estilo_tabla_pdf, ajustar_columnas_excel
+)
 
 bp = Blueprint('personal', __name__)
 personal_service = PersonalService()
@@ -299,7 +303,7 @@ def api_personal_activo():
         }), 500
 
 def _exportar_personal_excel(personal):
-    """Exporta personal a Excel"""
+    """Exporta personal a Excel con cabecera institucional"""
     wb = Workbook()
     ws = wb.active
     ws.title = "Personal"
@@ -307,44 +311,45 @@ def _exportar_personal_excel(personal):
     # Configurar orientación horizontal
     ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
     
-    # Encabezados
-    headers = ['Código', 'Nombre', 'CI', 'Teléfono', 'Correo', 'Dirección', 'Cargo', 'Estado']
+    # Crear cabecera institucional
+    current_row = crear_cabecera_excel(ws, "Reporte de Personal")
     
-    # Estilo para encabezados
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
+    # Obtener estilos
+    estilos = crear_estilos_excel()
+    
+    # Encabezados de datos
+    headers = ['Código', 'Nombre', 'CI', 'Teléfono', 'Correo', 'Dirección', 'Cargo', 'Estado']
     
     # Escribir encabezados
     for col, header in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=header)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_alignment
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
     # Escribir datos
-    for row, persona in enumerate(personal, 2):
-        ws.cell(row=row, column=1, value=persona.pe_codigo or '')
-        ws.cell(row=row, column=2, value=persona.pe_nombre or '')
-        ws.cell(row=row, column=3, value=persona.pe_ci or '')
-        ws.cell(row=row, column=4, value=persona.pe_telefono or '')
-        ws.cell(row=row, column=5, value=persona.pe_correo or '')
-        ws.cell(row=row, column=6, value=persona.pe_direccion or '')
-        ws.cell(row=row, column=7, value=persona.pe_cargo or '')
-        ws.cell(row=row, column=8, value=persona.pe_estado or '')
+    for persona in personal:
+        ws.cell(row=current_row, column=1, value=persona.pe_codigo or '')
+        ws.cell(row=current_row, column=2, value=persona.pe_nombre or '')
+        ws.cell(row=current_row, column=3, value=persona.pe_ci or '')
+        ws.cell(row=current_row, column=4, value=persona.pe_telefono or '')
+        ws.cell(row=current_row, column=5, value=persona.pe_correo or '')
+        ws.cell(row=current_row, column=6, value=persona.pe_direccion or '')
+        ws.cell(row=current_row, column=7, value=persona.pe_cargo or '')
+        ws.cell(row=current_row, column=8, value=persona.pe_estado or '')
+        
+        # Aplicar estilos a los datos
+        for col in range(1, 9):
+            cell = ws.cell(row=current_row, column=col)
+            cell.font = estilos['data_font']
+            cell.border = estilos['data_border']
+        
+        current_row += 1
     
     # Ajustar ancho de columnas
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except Exception:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+    ajustar_columnas_excel(ws)
     
     # Crear respuesta
     output = io.BytesIO()
@@ -353,44 +358,28 @@ def _exportar_personal_excel(personal):
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=personal_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Personal_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_personal_pdf(personal):
-    """Exporta personal a PDF"""
+    """Exporta personal a PDF con cabecera institucional"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=landscape(A4),
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
-    styles = getSampleStyleSheet()
     
-    # Título
-    title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
-        fontSize=16,
-        spaceAfter=30,
-        alignment=1
-    )
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf("Reporte de Personal"))
     
-    title = Paragraph("REPORTE DE PERSONAL", title_style)
-    elements.append(title)
-    elements.append(Spacer(1, 12))
+    # Obtener estilos
+    styles = crear_estilos_pdf()
     
-    # Información del reporte
-    info_style = ParagraphStyle(
-        'InfoStyle',
-        parent=styles['Normal'],
-        fontSize=10,
-        spaceAfter=20
-    )
-    
-    fecha_reporte = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-    info = Paragraph(f"<b>Fecha del reporte:</b> {fecha_reporte}<br/><b>Total de registros:</b> {len(personal)}", info_style)
-    elements.append(info)
+    # Título de la sección de datos
+    elements.append(Paragraph("LISTADO DE PERSONAL", styles['TituloSeccion']))
+    elements.append(Paragraph(f"Total de registros: {len(personal)}", styles['Normal']))
     elements.append(Spacer(1, 12))
     
     # Datos de la tabla
@@ -410,20 +399,8 @@ def _exportar_personal_pdf(personal):
     # Crear tabla
     table = Table(data, colWidths=[0.8*inch, 2.0*inch, 0.8*inch, 1.0*inch, 1.5*inch, 1.0*inch, 0.8*inch])
     
-    # Estilo de la tabla
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
+    # Aplicar estilo estandarizado
+    aplicar_estilo_tabla_pdf(table)
     
     elements.append(table)
     
@@ -433,89 +410,116 @@ def _exportar_personal_pdf(personal):
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=personal_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Personal_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response
 
 def _exportar_detalle_personal_excel(persona, consumos):
-    """Exporta detalle de personal a Excel"""
+    """Exporta detalle de personal a Excel con cabecera institucional"""
     wb = Workbook()
     ws = wb.active
     ws.title = f"Detalle_{persona.pe_nombre}"
     
+    # Configurar orientación horizontal
+    ws.page_setup.orientation = ws.ORIENTATION_LANDSCAPE
+    
+    # Crear cabecera institucional
+    current_row = crear_cabecera_excel(ws, f"Detalle de Personal - {persona.pe_nombre}")
+    
+    # Obtener estilos
+    estilos = crear_estilos_excel()
+    
     # Información personal
-    ws['A1'] = "DETALLE DE PERSONAL"
-    ws['A1'].font = Font(bold=True, size=14)
+    info_headers = ['Campo', 'Valor']
+    for col, header in enumerate(info_headers, 1):
+        cell = ws.cell(row=current_row, column=col, value=header)
+        cell.font = estilos['header_font']
+        cell.fill = estilos['header_fill']
+        cell.alignment = estilos['header_alignment']
+        cell.border = estilos['header_border']
+    current_row += 1
     
-    ws['A3'] = "Código:"
-    ws['B3'] = persona.pe_codigo or ''
-    ws['A4'] = "Nombre:"
-    ws['B4'] = persona.pe_nombre or ''
-    ws['A5'] = "CI:"
-    ws['B5'] = persona.pe_ci or ''
-    ws['A6'] = "Teléfono:"
-    ws['B6'] = persona.pe_telefono or ''
-    ws['A7'] = "Correo:"
-    ws['B7'] = persona.pe_correo or ''
-    ws['A8'] = "Cargo:"
-    ws['B8'] = persona.pe_cargo or ''
-    ws['A9'] = "Estado:"
-    ws['B9'] = persona.pe_estado or ''
+    # Datos personales
+    info_data = [
+        ['Código', persona.pe_codigo or ''],
+        ['Nombre', persona.pe_nombre or ''],
+        ['CI', persona.pe_ci or ''],
+        ['Teléfono', persona.pe_telefono or ''],
+        ['Correo', persona.pe_correo or ''],
+        ['Dirección', persona.pe_direccion or ''],
+        ['Cargo', persona.pe_cargo or ''],
+        ['Estado', persona.pe_estado or '']
+    ]
     
-    # Historial de consumos
+    for campo, valor in info_data:
+        ws.cell(row=current_row, column=1, value=campo).font = estilos['data_font']
+        ws.cell(row=current_row, column=2, value=valor).font = estilos['data_font']
+        current_row += 1
+    
+    current_row += 2  # Espacio antes de asignaciones
+    
+    # Historial de asignaciones
     if consumos:
-        ws['A11'] = "HISTORIAL DE ASIGNACIONES"
-        ws['A11'].font = Font(bold=True, size=12)
+        ws.cell(row=current_row, column=1, value="HISTORIAL DE ASIGNACIONES").font = estilos['header_font']
+        current_row += 2
         
+        # Encabezados de asignaciones
         headers = ['Fecha', 'Artículo', 'Cantidad', 'Estado', 'Observaciones']
         for col, header in enumerate(headers, 1):
-            cell = ws.cell(row=13, column=col, value=header)
-            cell.font = Font(bold=True)
+            cell = ws.cell(row=current_row, column=col, value=header)
+            cell.font = estilos['header_font']
+            cell.fill = estilos['header_fill']
+            cell.alignment = estilos['header_alignment']
+            cell.border = estilos['header_border']
+        current_row += 1
         
-        for row, consumo in enumerate(consumos, 14):
-            ws.cell(row=row, column=1, value=consumo.c_fecha.strftime('%d/%m/%Y') if consumo.c_fecha else '')
-            ws.cell(row=row, column=2, value=consumo.item.i_nombre if consumo.item else '')
-            ws.cell(row=row, column=3, value=consumo.c_cantidad or 0)
-            ws.cell(row=row, column=4, value=consumo.c_estado or '')
-            ws.cell(row=row, column=5, value=consumo.c_observaciones or '')
+        # Datos de asignaciones
+        for consumo in consumos:
+            ws.cell(row=current_row, column=1, value=consumo.c_fecha.strftime('%d/%m/%Y') if consumo.c_fecha else '')
+            ws.cell(row=current_row, column=2, value=consumo.item.i_nombre if consumo.item else '')
+            ws.cell(row=current_row, column=3, value=consumo.c_cantidad or 0)
+            ws.cell(row=current_row, column=4, value=consumo.c_estado or '')
+            ws.cell(row=current_row, column=5, value=consumo.c_observaciones or '')
+            
+            # Aplicar estilos a los datos
+            for col in range(1, 6):
+                cell = ws.cell(row=current_row, column=col)
+                cell.font = estilos['data_font']
+                cell.border = estilos['data_border']
+            
+            current_row += 1
     
     # Ajustar ancho de columnas
-    for column in ws.columns:
-        max_length = 0
-        column_letter = column[0].column_letter
-        for cell in column:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except Exception:
-                pass
-        adjusted_width = min(max_length + 2, 50)
-        ws.column_dimensions[column_letter].width = adjusted_width
+    ajustar_columnas_excel(ws)
     
+    # Crear respuesta
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
     
     response = make_response(output.read())
     response.headers['Content-Type'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    response.headers['Content-Disposition'] = f'attachment; filename=detalle_{persona.pe_nombre}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{persona.pe_nombre}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
     
     return response
 
 def _exportar_detalle_personal_pdf(persona, consumos):
-    """Exporta detalle de personal a PDF"""
+    """Exporta detalle de personal a PDF con cabecera institucional"""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4,
                           rightMargin=0.5*inch, leftMargin=0.5*inch,
                           topMargin=0.5*inch, bottomMargin=0.5*inch)
     
     elements = []
-    styles = getSampleStyleSheet()
     
-    # Título
-    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=16, spaceAfter=30, alignment=1)
-    title = Paragraph(f"DETALLE DE PERSONAL: {persona.pe_nombre}", title_style)
-    elements.append(title)
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf(f"Detalle de Personal - {persona.pe_nombre}"))
+    
+    # Obtener estilos
+    styles = crear_estilos_pdf()
+    
+    # Título de la sección de información
+    elements.append(Paragraph("INFORMACIÓN PERSONAL", styles['TituloSeccion']))
     elements.append(Spacer(1, 12))
     
     # Información personal
@@ -525,6 +529,7 @@ def _exportar_detalle_personal_pdf(persona, consumos):
         ['CI:', persona.pe_ci or '-'],
         ['Teléfono:', persona.pe_telefono or '-'],
         ['Correo:', persona.pe_correo or '-'],
+        ['Dirección:', persona.pe_direccion or '-'],
         ['Cargo:', persona.pe_cargo or '-'],
         ['Estado:', persona.pe_estado or '-']
     ]
@@ -536,15 +541,17 @@ def _exportar_detalle_personal_pdf(persona, consumos):
         ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
         ('GRID', (0, 0), (-1, -1), 1, colors.black),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
     ]))
     
     elements.append(info_table)
     elements.append(Spacer(1, 20))
     
-    # Historial de consumos
+    # Historial de asignaciones
     if consumos:
-        subtitle = Paragraph("HISTORIAL DE ASIGNACIONES", styles['Heading2'])
-        elements.append(subtitle)
+        elements.append(Paragraph("HISTORIAL DE ASIGNACIONES", styles['TituloSeccion']))
+        elements.append(Paragraph(f"Total de asignaciones: {len(consumos)}", styles['Normal']))
         elements.append(Spacer(1, 12))
         
         consumos_data = [['Fecha', 'Artículo', 'Cantidad', 'Estado', 'Observaciones']]
@@ -558,27 +565,18 @@ def _exportar_detalle_personal_pdf(persona, consumos):
             ])
         
         consumos_table = Table(consumos_data, colWidths=[1*inch, 2*inch, 0.8*inch, 1*inch, 1.5*inch])
-        consumos_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 9),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 8),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
+        
+        # Aplicar estilo estandarizado
+        aplicar_estilo_tabla_pdf(consumos_table)
         
         elements.append(consumos_table)
     
+    # Construir PDF
     doc.build(elements)
     buffer.seek(0)
     
     response = make_response(buffer.read())
     response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = f'attachment; filename=detalle_{persona.pe_nombre}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Detalle_{persona.pe_nombre}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
     
     return response

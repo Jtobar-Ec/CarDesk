@@ -208,20 +208,23 @@ class ArticuloService:
         """Obtiene los movimientos de un artículo"""
         return self.movimiento_repo.get_by_item(articulo_id)
 
-    def registrar_entrada(self, articulo_id, cantidad, valor_unitario, usuario_id, proveedor_id=None, observaciones=None):
+    def registrar_entrada(self, articulo_id, cantidad, valor_unitario, usuario_id, proveedor_id=None, observaciones=None, fecha_hora=None):
         """Registra una entrada de artículo con proveedor"""
         from app.database.models import Entrada
         from app import db
         from datetime import datetime
         
+        if fecha_hora is None:
+            fecha_hora = datetime.now()
+        
         # Crear registro de entrada si se especifica proveedor
         entrada_id = None
         if proveedor_id:
             entrada = Entrada(
-                e_fecha=datetime.now().date(),
-                e_hora=datetime.now().time(),
+                e_fecha=fecha_hora.date(),
+                e_hora=fecha_hora.time(),
                 e_descripcion=observaciones or f"Entrada de artículo - Cantidad: {cantidad}",
-                e_numFactura=f"AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}",
+                e_numFactura=f"AUTO-{fecha_hora.strftime('%Y%m%d%H%M%S')}",
                 p_id=proveedor_id
             )
             db.session.add(entrada)
@@ -230,7 +233,7 @@ class ArticuloService:
         
         return self.movimiento_repo.crear_entrada(
             articulo_id, cantidad, valor_unitario, usuario_id,
-            entrada_id=entrada_id, observaciones=observaciones
+            entrada_id=entrada_id, observaciones=observaciones, fecha_hora=fecha_hora
         )
 
     def registrar_salida(self, articulo_id, cantidad, valor_unitario, usuario_id, observaciones=None):
