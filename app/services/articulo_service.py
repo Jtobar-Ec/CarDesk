@@ -2,6 +2,7 @@ from app.database.repositories.articulos import ArticuloRepository
 from app.database.repositories.movimientos import MovimientoRepository
 from app.database.models import Item
 from app.database import db
+from datetime import datetime
 def _registrar_movimiento_con_auditoria(item_id, tipo, cantidad, valor_unitario, usuario_id, observaciones=None, entrada_id=None, consumo_id=None):
     """Registra un movimiento con auditoría completa de valores anteriores y actuales"""
     from app.database.models import MovimientoDetalle
@@ -110,17 +111,17 @@ class ArticuloService:
         return f"ART{numero:03d}"
 
     def crear_articulo(self, nombre, cantidad, valor_unitario, cuenta_contable, stock_min=0, stock_max=100, usuario_id=1):
-        """Crea un nuevo artículo con código automático"""
+        """Crea un nuevo artículo con código automático y stock inicial"""
         codigo = self._generar_codigo_articulo()
         
-        # Crear artículo sin stock inicial (se agregará con entrada si es necesario)
+        # Crear artículo con stock inicial
         item_data = {
             'i_codigo': codigo,
             'i_nombre': nombre,
             'i_tipo': 'articulo',
-            'i_cantidad': 0,  # Iniciar en 0, se agregará stock con entrada
+            'i_cantidad': cantidad,  # Usar la cantidad inicial proporcionada
             'i_vUnitario': valor_unitario,
-            'i_vTotal': 0  # Iniciar en 0
+            'i_vTotal': cantidad * valor_unitario  # Calcular valor total inicial
         }
         
         articulo_data = {
@@ -129,7 +130,25 @@ class ArticuloService:
             'a_stockMax': stock_max
         }
         
-        return self.repo.create_with_item(item_data, articulo_data)
+        articulo, item = self.repo.create_with_item(item_data, articulo_data)
+        
+        # Si hay cantidad inicial, registrar movimiento de entrada inicial
+        if cantidad > 0:
+            from app.database.models import MovimientoDetalle
+            movimiento = MovimientoDetalle(
+                m_fecha=datetime.now().date(),
+                m_tipo='entrada',
+                m_cantidad=cantidad,
+                m_valorUnitario=valor_unitario,
+                m_valorTotal=cantidad * valor_unitario,
+                m_observaciones=f'Stock inicial del artículo {codigo}',
+                i_id=item.id,
+                u_id=usuario_id
+            )
+            db.session.add(movimiento)
+            db.session.commit()
+        
+        return articulo, item
 
     def obtener_articulo_por_id(self, articulo_id):
         """Obtiene un artículo por ID"""
@@ -217,6 +236,14 @@ class ArticuloService:
         if fecha_hora is None:
             fecha_hora = datetime.now()
         
+        # CORRECCIÓN: Obtener el item_id correcto desde el artículo
+        resultado = self.repo.get_by_id_with_item(articulo_id)
+        if not resultado:
+            raise ValueError("Artículo no encontrado")
+        
+        articulo, item = resultado
+        item_id = item.id
+        
         # Crear registro de entrada si se especifica proveedor
         entrada_id = None
         if proveedor_id:
@@ -231,8 +258,9 @@ class ArticuloService:
             db.session.flush()  # Para obtener el ID
             entrada_id = entrada.id
         
+        # CORRECCIÓN: Usar item_id en lugar de articulo_id
         return self.movimiento_repo.crear_entrada(
-            articulo_id, cantidad, valor_unitario, usuario_id,
+            item_id, cantidad, valor_unitario, usuario_id,
             entrada_id=entrada_id, observaciones=observaciones, fecha_hora=fecha_hora
         )
 
