@@ -24,7 +24,7 @@ class Usuario(UserMixin, BaseModel):
     __tablename__ = 'tb_usuario'
     
     u_username = db.Column(db.String(50), unique=True, nullable=False)
-    u_password = db.Column(db.String(100), nullable=False)  # Almacenará el hash
+    u_password = db.Column(db.String(255), nullable=False)  # Almacenará el hash
     movimientos = db.relationship('MovimientoDetalle', backref='usuario', lazy=True)
     
     def set_password(self, password):
