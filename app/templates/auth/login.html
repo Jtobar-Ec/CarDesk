@@ -47,6 +47,13 @@
                     </div>
                 </form>
                 
+                <hr>
+                <div class="text-center">
+                    <a href="{{ url_for('auth.recuperar_password') }}" class="text-decoration-none">
+                        <i class="fas fa-fingerprint"></i> ¿Olvidaste tu contraseña?
+                    </a>
+                </div>
+                
                 {% if show_register_link %}
                 <hr>
                 <div class="text-center">

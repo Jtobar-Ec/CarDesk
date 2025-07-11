@@ -133,7 +133,15 @@
                                     </small>
                                 </td>
                                 <td>
-                                    {% if item.i_cantidad < articulo.a_stockMin %}
+                                    {% if item.i_estado == 'Dañado' %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-exclamation-triangle"></i> Dañado
+                                        </span>
+                                    {% elif item.i_estado == 'Baja' %}
+                                        <span class="badge bg-dark">
+                                            <i class="fas fa-ban"></i> Dado de Baja
+                                        </span>
+                                    {% elif item.i_cantidad < articulo.a_stockMin %}
                                         <span class="badge bg-danger">Stock Crítico</span>
                                     {% elif item.i_cantidad <= (articulo.a_stockMin * 1.2) %}
                                         <span class="badge bg-warning">Stock Bajo</span>
@@ -145,12 +153,6 @@
     <div class="d-flex">
         <!-- Primer grupo de 3 botones (Ver detalles, Editar, Eliminar) -->
         <div class="btn-group me-2" role="group">
-            <button type="button" class="btn btn-outline-warning"
-                    data-bs-toggle="modal"
-                    data-bs-target="#precioModal{{ item.id }}"
-                    title="Actualizar precio">
-                <i class="fas fa-dollar-sign"></i>
-            </button>
             <button type="button" class="btn btn-outline-success"
                     data-bs-toggle="modal"
                     data-bs-target="#entradaModal{{ item.id }}"
@@ -175,12 +177,20 @@
                class="btn btn-outline-info" title="Editar">
                 <i class="fas fa-edit"></i>
             </a>
-            <button type="button" class="btn btn-outline-dark"
-                    data-bs-toggle="modal"
-                    data-bs-target="#eliminarModal{{ item.id }}"
-                    title="Eliminar">
-                <i class="fas fa-trash"></i>
-            </button>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-outline-warning"
+                        data-bs-toggle="modal"
+                        data-bs-target="#estadoModal{{ item.id }}"
+                        title="Cambiar estado">
+                    <i class="fas fa-tools"></i>
+                </button>
+                <button type="button" class="btn btn-outline-dark"
+                        data-bs-toggle="modal"
+                        data-bs-target="#eliminarModal{{ item.id }}"
+                        title="Eliminar">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
         </div>
     </div>
 </td>
@@ -214,6 +224,12 @@
                                                         {% endfor %}
                                                     </select>
                                                     <div class="form-text">Selecciona el proveedor que suministra este artículo (opcional)</div>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Número de Factura</label>
+                                                    <input type="text" class="form-control" name="numero_factura"
+                                                           placeholder="Ej: FAC-001-001-000123">
+                                                    <div class="form-text">Número de factura del proveedor (opcional)</div>
                                                 </div>
                                                 <div class="mb-3">
                                                     <label class="form-label">Observaciones</label>
@@ -375,6 +391,57 @@
                                                 </button>
                                             </form>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Modal para cambiar estado -->
+                            <div class="modal fade" id="estadoModal{{ item.id }}" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Cambiar Estado - {{ item.i_nombre }}</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="{{ url_for('articulos.cambiar_estado', articulo_id=item.id) }}">
+                                            <div class="modal-body">
+                                                <div class="alert alert-info">
+                                                    <strong>Estado actual:</strong>
+                                                    {% if item.i_estado == 'Dañado' %}
+                                                        <span class="badge bg-danger">Dañado</span>
+                                                    {% elif item.i_estado == 'Baja' %}
+                                                        <span class="badge bg-dark">Dado de Baja</span>
+                                                    {% else %}
+                                                        <span class="badge bg-success">Activo</span>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Nuevo Estado</label>
+                                                    <select class="form-select" name="nuevo_estado" required>
+                                                        <option value="">Seleccionar estado...</option>
+                                                        <option value="Activo" {{ 'selected' if item.i_estado == 'Activo' }}>
+                                                            <i class="fas fa-check"></i> Activo
+                                                        </option>
+                                                        <option value="Dañado" {{ 'selected' if item.i_estado == 'Dañado' }}>
+                                                            <i class="fas fa-exclamation-triangle"></i> Dañado
+                                                        </option>
+                                                        <option value="Baja" {{ 'selected' if item.i_estado == 'Baja' }}>
+                                                            <i class="fas fa-ban"></i> Dar de Baja
+                                                        </option>
+                                                    </select>
+                                                </div>
+                                                <div class="mb-3">
+                                                    <label class="form-label">Observaciones</label>
+                                                    <textarea class="form-control" name="observaciones_estado" rows="3" maxlength="500"
+                                                              placeholder="Motivo del cambio de estado...">{{ item.i_observaciones_estado or '' }}</textarea>
+                                                    <div class="form-text">0/500 caracteres</div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                                <button type="submit" class="btn btn-warning">Cambiar Estado</button>
+                                            </div>
+                                        </form>
                                     </div>
                                 </div>
                             </div>

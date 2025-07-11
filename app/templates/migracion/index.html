@@ -8,6 +8,30 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2><i class="fas fa-database me-2"></i>Migración de Datos</h2>
+                <button type="button" class="btn btn-outline-info btn-sm" id="refreshStatusBtn" onclick="loadDatabaseStatus()">
+                    <i class="fas fa-sync-alt me-1"></i>Actualizar Estado
+                </button>
+            </div>
+
+            <!-- Estado de la Base de Datos -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="fas fa-heartbeat me-2"></i>Estado de la Base de Datos
+                            </h5>
+                        </div>
+                        <div class="card-body" id="dbStatus">
+                            <div class="text-center">
+                                <div class="spinner-border text-info" role="status">
+                                    <span class="visually-hidden">Cargando...</span>
+                                </div>
+                                <p class="mt-2 mb-0">Verificando estado de la base de datos...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="row">
@@ -56,7 +80,7 @@
 
                             <!-- Input de archivo oculto -->
                             <form id="formImportar" method="POST" action="{{ url_for('migracion.importar_base') }}" enctype="multipart/form-data">
-                                <input type="file" id="fileInput" name="archivo" accept=".db,.zip,.sql" style="display: none;" onchange="handleFileSelect(this.files[0])">
+                                <input type="file" id="fileInput" name="archivo" accept=".sql,.zip" style="display: none;" onchange="handleFileSelect(this.files[0])">
                             </form>
 
                             <!-- Información del archivo seleccionado -->
@@ -83,10 +107,16 @@
                             <div class="mt-4">
                                 <h6>Formatos Soportados:</h6>
                                 <ul class="small text-muted">
-                                    <li><strong>.db</strong> - Base de datos SQLite</li>
-                                    <li><strong>.zip</strong> - Archivo comprimido con base de datos</li>
-                                    <li><strong>.sql</strong> - Script SQL (próximamente)</li>
+                                    <li><strong>.sql</strong> - Dump de MySQL (recomendado)</li>
+                                    <li><strong>.zip</strong> - Archivo comprimido con dump SQL</li>
                                 </ul>
+                                <div class="alert alert-info mt-2">
+                                    <small>
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        <strong>Importante:</strong> Solo se aceptan dumps de MySQL.
+                                        El archivo debe contener las instrucciones CREATE TABLE e INSERT INTO.
+                                    </small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -298,6 +328,7 @@ function confirmarImportacion() {
     
     if (confirm('¿Estás seguro de que deseas importar esta base de datos? Esta acción puede afectar los datos existentes.')) {
         showLoading('Importando Base de Datos', 'Procesando archivo e importando datos...');
+        markImporting(); // Marcar que se está importando
         
         // Asignar el archivo al input del formulario
         const fileInput = document.getElementById('fileInput');
@@ -358,9 +389,178 @@ function showAlert(message, type) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Funciones de estado de base de datos
+function loadDatabaseStatus() {
+    const statusDiv = document.getElementById('dbStatus');
+    
+    statusDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-info" role="status">
+                <span class="visually-hidden">Cargando...</span>
+            </div>
+            <p class="mt-2 mb-0">Verificando estado de la base de datos...</p>
+        </div>
+    `;
+    
+    fetch('{{ url_for("migracion.estado_base_datos") }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                statusDiv.innerHTML = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                <strong>Conexión:</strong> <span class="text-success ms-1">Activa</span>
+                            </div>
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-database text-primary me-2"></i>
+                                <strong>Base de Datos:</strong> <span class="ms-1">${data.database || 'N/A'}</span>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center mb-2">
+                                <i class="fas fa-table text-info me-2"></i>
+                                <strong>Tablas:</strong> <span class="ms-1">${data.tables_count || 0}</span>
+                            </div>
+                            <div class="d-flex align-items-center">
+                                <i class="fas fa-server text-secondary me-2"></i>
+                                <strong>Host:</strong> <span class="ms-1">${data.host || 'localhost'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    ${data.tables && data.tables.length > 0 ? `
+                        <div class="mt-3">
+                            <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#tablesList">
+                                <i class="fas fa-list me-1"></i>Ver Tablas
+                            </button>
+                            <div class="collapse mt-2" id="tablesList">
+                                <div class="card card-body">
+                                    <div class="row">
+                                        ${data.tables.map(table => `<div class="col-md-4 col-sm-6"><small><i class="fas fa-table me-1"></i>${table}</small></div>`).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-warning mb-0">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <div>
+                                <strong>Error de Conexión</strong>
+                                <p class="mb-0 small">${data.message || 'No se pudo conectar con la base de datos'}</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="testDatabaseConnection()">
+                            <i class="fas fa-plug me-1"></i>Probar Conexión
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <div>
+                            <strong>Error</strong>
+                            <p class="mb-0 small">Error al obtener estado: ${error.message}</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="loadDatabaseStatus()">
+                        <i class="fas fa-redo me-1"></i>Reintentar
+                    </button>
+                </div>
+            `;
+        });
+}
+
+function testDatabaseConnection() {
+    const statusDiv = document.getElementById('dbStatus');
+    
+    statusDiv.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Probando conexión...</span>
+            </div>
+            <p class="mt-2 mb-0">Probando conexión con la base de datos...</p>
+        </div>
+    `;
+    
+    fetch('{{ url_for("migracion.test_conexion_bd") }}')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-success mb-0">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <div>
+                                <strong>Conexión Exitosa</strong>
+                                <p class="mb-0 small">${data.message}</p>
+                                <small class="text-muted">Base de datos: ${data.database} | Host: ${data.host}</small>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-info mt-2" onclick="loadDatabaseStatus()">
+                            <i class="fas fa-sync-alt me-1"></i>Cargar Estado Completo
+                        </button>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="alert alert-danger mb-0">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-times-circle me-2"></i>
+                            <div>
+                                <strong>Error de Conexión</strong>
+                                <p class="mb-0 small">${data.message}</p>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-primary mt-2" onclick="testDatabaseConnection()">
+                            <i class="fas fa-redo me-1"></i>Reintentar
+                        </button>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger mb-0">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-times-circle me-2"></i>
+                        <div>
+                            <strong>Error</strong>
+                            <p class="mb-0 small">Error al probar conexión: ${error.message}</p>
+                        </div>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary mt-2" onclick="testDatabaseConnection()">
+                        <i class="fas fa-redo me-1"></i>Reintentar
+                    </button>
+                </div>
+            `;
+        });
+}
+
+// Marcar que se está importando
+function markImporting() {
+    sessionStorage.setItem('importing', 'true');
+}
+
 // Inicializar cuando se carga la página
 document.addEventListener('DOMContentLoaded', function() {
     setupDropZone();
+    loadDatabaseStatus(); // Cargar estado inicial
+    
+    // Detectar si venimos de una importación y cerrar modal
+    if (sessionStorage.getItem('importing')) {
+        hideLoading();
+        sessionStorage.removeItem('importing');
+        loadDatabaseStatus(); // Actualizar estado después de importación
+    }
     
     // Cerrar modal de loading si hay mensajes flash (importación completada)
     const flashMessages = document.querySelectorAll('.alert');

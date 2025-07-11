@@ -110,7 +110,7 @@ class ArticuloService:
         
         return f"ART{numero:03d}"
 
-    def crear_articulo(self, nombre, cantidad, valor_unitario, cuenta_contable, stock_min=0, stock_max=100, usuario_id=1):
+    def crear_articulo(self, nombre, cantidad, valor_unitario, cuenta_contable, stock_min=0, stock_max=100, usuario_id=1, serial=None, codigo_identificacion=None):
         """Crea un nuevo artículo con código automático y stock inicial"""
         codigo = self._generar_codigo_articulo()
         
@@ -121,7 +121,9 @@ class ArticuloService:
             'i_tipo': 'articulo',
             'i_cantidad': cantidad,  # Usar la cantidad inicial proporcionada
             'i_vUnitario': valor_unitario,
-            'i_vTotal': cantidad * valor_unitario  # Calcular valor total inicial
+            'i_vTotal': cantidad * valor_unitario,  # Calcular valor total inicial
+            'i_serial': serial,
+            'i_codigo_identificacion': codigo_identificacion
         }
         
         articulo_data = {

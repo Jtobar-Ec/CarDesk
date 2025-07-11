@@ -43,6 +43,11 @@ def register():
     if form.validate_on_submit():
         user = Usuario(u_username=form.username.data)
         user.set_password(form.password.data)
+        
+        # Hashear y guardar el código dactilar
+        from werkzeug.security import generate_password_hash
+        user.u_codigo_dactilar = generate_password_hash(form.codigo_dactilar.data)
+        
         user.save()
         flash('Registro exitoso. Ya puedes iniciar sesión.', 'success')
         return redirect(url_for('auth.login'))
@@ -74,3 +79,54 @@ def logout():
     logout_user()
     flash('Has cerrado sesión correctamente', 'success')
     return redirect(url_for('auth.login'))
+
+@bp.route('/recuperar-password', methods=['GET', 'POST'])
+def recuperar_password():
+    """Recuperar contraseña usando código dactilar"""
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+    
+    if request.method == 'POST':
+        username = request.form.get('username')
+        codigo_dactilar = request.form.get('codigo_dactilar')
+        nueva_password = request.form.get('nueva_password')
+        confirmar_password = request.form.get('confirmar_password')
+        
+        # Validaciones
+        if not all([username, codigo_dactilar, nueva_password, confirmar_password]):
+            flash('Todos los campos son obligatorios', 'error')
+            return render_template('auth/recuperar_password.html')
+        
+        if nueva_password != confirmar_password:
+            flash('Las contraseñas no coinciden', 'error')
+            return render_template('auth/recuperar_password.html')
+        
+        if len(nueva_password) < 6:
+            flash('La contraseña debe tener al menos 6 caracteres', 'error')
+            return render_template('auth/recuperar_password.html')
+        
+        # Buscar usuario
+        user = Usuario.query.filter_by(u_username=username).first()
+        if not user:
+            flash('Usuario no encontrado', 'error')
+            return render_template('auth/recuperar_password.html')
+        
+        # Verificar código dactilar
+        if not user.u_codigo_dactilar:
+            flash('Este usuario no tiene código dactilar configurado', 'error')
+            return render_template('auth/recuperar_password.html')
+        
+        # Verificar código dactilar (usando hash para seguridad)
+        from werkzeug.security import check_password_hash
+        if not check_password_hash(user.u_codigo_dactilar, codigo_dactilar):
+            flash('Código dactilar incorrecto', 'error')
+            return render_template('auth/recuperar_password.html')
+        
+        # Actualizar contraseña
+        user.set_password(nueva_password)
+        db.session.commit()
+        
+        flash('Contraseña actualizada exitosamente. Ya puedes iniciar sesión.', 'success')
+        return redirect(url_for('auth.login'))
+    
+    return render_template('auth/recuperar_password.html')

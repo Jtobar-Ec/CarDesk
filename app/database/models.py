@@ -25,6 +25,7 @@ class Usuario(UserMixin, BaseModel):
     
     u_username = db.Column(db.String(50), unique=True, nullable=False)
     u_password = db.Column(db.String(255), nullable=False)  # Almacenará el hash
+    u_codigo_dactilar = db.Column(db.String(255), nullable=True)  # Código dactilar para recuperación
     movimientos = db.relationship('MovimientoDetalle', backref='usuario', lazy=True)
     
     def set_password(self, password):
@@ -87,6 +88,10 @@ class Item(BaseModel):
     i_cantidad = db.Column(db.Integer, default=0)
     i_vUnitario = db.Column(db.Numeric(10, 2), default=0.0)
     i_vTotal = db.Column(db.Numeric(10, 2), default=0.0)
+    i_serial = db.Column(db.String(100), nullable=True)  # Número de serie opcional
+    i_codigo_identificacion = db.Column(db.String(100), nullable=True)  # Código de identificación opcional
+    i_estado = db.Column(db.String(20), default='Activo')  # Activo, Dañado, Baja
+    i_observaciones_estado = db.Column(db.String(500), nullable=True)  # Observaciones del estado
     
     # Relación polimórfica
     instrumento = db.relationship('Instrumento', backref='item', uselist=False)

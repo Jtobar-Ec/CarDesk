@@ -23,6 +23,10 @@ class RegisterForm(FlaskForm):
         DataRequired(message='La contraseña es requerida'),
         Length(min=6, message='La contraseña debe tener al menos 6 caracteres')
     ])
+    codigo_dactilar = StringField('Código Dactilar', validators=[
+        DataRequired(message='El código dactilar es requerido'),
+        Length(min=4, max=20, message='El código dactilar debe tener entre 4 y 20 caracteres')
+    ])
     submit = SubmitField('Registrarse')
     
     def validate_username(self, username):

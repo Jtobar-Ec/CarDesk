@@ -42,97 +42,118 @@
                         </div>
                     </div>
                     {% else %}
-                    <div class="mb-3">
-                        <label for="cuenta_contable" class="form-label">Cuenta Contable *</label>
-                        <input type="text" class="form-control" id="cuenta_contable" name="cuenta_contable" required>
-                        <div class="form-text">Código de cuenta contable</div>
-                    </div>
-                    {% endif %}
-
-                    <div class="mb-3">
-                        <label for="nombre" class="form-label">Nombre del Artículo *</label>
-                        <input type="text" class="form-control" id="nombre" name="nombre" 
-                               value="{{ item.i_nombre if articulo else '' }}" required>
-                        <div class="form-text">Descripción completa del artículo</div>
+                    <!-- Formulario para múltiples artículos -->
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Información:</strong> Seleccione un proveedor y agregue múltiples artículos en una sola factura.
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="cantidad" class="form-label">Cantidad Inicial *</label>
-                                <input type="number" class="form-control" id="cantidad" name="cantidad" 
-                                       value="{{ item.i_cantidad if articulo else '0' }}" required min="0">
+                    <!-- Donación -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="es_donacion" name="es_donacion" onchange="toggleDonacion()">
+                                <label class="form-check-label" for="es_donacion">
+                                    <i class="fas fa-gift text-success"></i> <strong>Marcar como Donación</strong>
+                                </label>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label for="valor_unitario" class="form-label">Valor Unitario *</label>
+                        <div class="col-md-6" id="observacionesDonacion" style="display: none;">
+                            <label for="observaciones_donacion" class="form-label">
+                                <i class="fas fa-comment"></i> Observaciones de la Donación
+                            </label>
+                            <input type="text" class="form-control" id="observaciones_donacion" name="observaciones_donacion"
+                                   placeholder="Detalles sobre la donación...">
+                        </div>
+                    </div>
+
+                    <!-- Información del Proveedor y Factura (solo si NO es donación) -->
+                    <div id="proveedorFacturaSection">
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <label for="proveedor_id" class="form-label">
+                                    <i class="fas fa-truck"></i> Proveedor <span class="text-danger">*</span>
+                                </label>
                                 <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="number" class="form-control" id="valor_unitario" name="valor_unitario" 
-                                           value="{{ item.i_vUnitario if articulo else '0.00' }}" 
-                                           step="0.01" required min="0">
+                                    <select class="form-select" id="proveedor_id" name="proveedor_id" required>
+                                        <option value="">Seleccionar proveedor...</option>
+                                        {% for proveedor in proveedores %}
+                                        <option value="{{ proveedor.id }}">{{ proveedor.p_codigo }} - {{ proveedor.p_razonsocial }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#nuevoProveedorModal">
+                                        <i class="fas fa-plus"></i> Nuevo
+                                    </button>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="mb-3">
-                                <label class="form-label">Valor Total</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">$</span>
-                                    <input type="text" class="form-control" id="valor_total" readonly>
-                                </div>
-                                <div class="form-text">Se calcula automáticamente</div>
+                            <div class="col-md-6">
+                                <label for="numero_factura" class="form-label">
+                                    <i class="fas fa-receipt"></i> Número de Factura <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" class="form-control" id="numero_factura" name="numero_factura" required
+                                       placeholder="Ej: FAC-001-001-000123">
+                                <div class="form-text">Número de factura del proveedor</div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="stock_min" class="form-label">Stock Mínimo</label>
-                                <input type="number" class="form-control" id="stock_min" name="stock_min" 
-                                       value="{{ articulo.a_stockMin if articulo else '5' }}" min="0">
-                                <div class="form-text">Cantidad mínima para alertas</div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label for="stock_max" class="form-label">Stock Máximo</label>
-                                <input type="number" class="form-control" id="stock_max" name="stock_max" 
-                                       value="{{ articulo.a_stockMax if articulo else '100' }}" min="1">
-                                <div class="form-text">Cantidad máxima recomendada</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {% if not articulo %}
-                    <div class="mb-3">
-                        <label for="proveedor_id" class="form-label">Proveedor</label>
-                        <div class="input-group">
-                            <select class="form-select" id="proveedor_id" name="proveedor_id">
-                                <option value="">Sin proveedor específico</option>
-                                {% for proveedor in proveedores %}
-                                <option value="{{ proveedor.id }}">{{ proveedor.p_codigo }} - {{ proveedor.p_razonsocial }}</option>
-                                {% endfor %}
-                            </select>
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#nuevoProveedorModal">
-                                <i class="fas fa-plus"></i> Nuevo
+                    <!-- Artículos a Agregar -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5><i class="fas fa-boxes"></i> Artículos de la Factura</h5>
+                            <button type="button" class="btn btn-success btn-sm" onclick="agregarArticulo()">
+                                <i class="fas fa-plus"></i> Agregar Artículo
                             </button>
                         </div>
-                        <div class="form-text">Proveedor que suministra este artículo (opcional)</div>
+
+                        <!-- Datalist para autocompletado de artículos -->
+                        <datalist id="articulos-existentes">
+                            {% for articulo in articulos_existentes %}
+                            <option value="{{ articulo.a_nombre }}">
+                            {% endfor %}
+                        </datalist>
+
+                        <div id="articulosContainer">
+                            <!-- Los artículos se agregarán dinámicamente aquí -->
+                        </div>
+
+                        <div class="text-muted mt-2">
+                            <small><i class="fas fa-lightbulb"></i> Haga clic en "Agregar Artículo" para comenzar a agregar artículos a la factura.</small>
+                        </div>
                     </div>
-                    {% endif %}
+
+                    <!-- Resumen -->
+                    <div class="card mb-4" id="resumenCard" style="display: none;">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-calculator"></i> Resumen de la Factura</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-4">
+                                    <h5 id="totalArticulos">0</h5>
+                                    <small>Artículos</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <h5 id="totalUnidades">0</h5>
+                                    <small>Unidades</small>
+                                </div>
+                                <div class="col-md-4">
+                                    <h5 id="totalValor">$0.00</h5>
+                                    <small>Valor Total</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                         <a href="{{ url_for('articulos.listar_articulos') }}" class="btn btn-secondary me-md-2">
                             <i class="fas fa-times"></i> Cancelar
                         </a>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> 
-                            {% if articulo %}Actualizar{% else %}Crear{% endif %} Artículo
+                        <button type="submit" class="btn btn-primary" id="btnSubmit" disabled>
+                            <i class="fas fa-save"></i> Crear Artículos
                         </button>
                     </div>
+                    {% endif %}
                 </form>
             </div>
         </div>
@@ -197,30 +218,269 @@
 
 {% block scripts %}
 <script>
+let articuloIndex = 0;
+
 document.addEventListener('DOMContentLoaded', function() {
     const cantidadInput = document.getElementById('cantidad');
     const valorUnitarioInput = document.getElementById('valor_unitario');
     const valorTotalInput = document.getElementById('valor_total');
 
-    function calcularTotal() {
-        const cantidad = parseFloat(cantidadInput.value) || 0;
-        const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
-        const total = cantidad * valorUnitario;
-        valorTotalInput.value = total.toFixed(2);
-    }
+    // Solo para modo edición (artículo existente)
+    if (cantidadInput && valorUnitarioInput && valorTotalInput) {
+        function calcularTotal() {
+            const cantidad = parseFloat(cantidadInput.value) || 0;
+            const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
+            const total = cantidad * valorUnitario;
+            valorTotalInput.value = total.toFixed(2);
+        }
 
-    cantidadInput.addEventListener('input', calcularTotal);
-    valorUnitarioInput.addEventListener('input', calcularTotal);
-    
-    // Calcular total inicial
-    calcularTotal();
+        cantidadInput.addEventListener('input', calcularTotal);
+        valorUnitarioInput.addEventListener('input', calcularTotal);
+        
+        // Calcular total inicial
+        calcularTotal();
+    }
 
     // Configuración específica para nuevo artículo
     const modalProveedor = document.getElementById('nuevoProveedorModal');
     if (modalProveedor) {
         initModalProveedorForm();
     }
+
+    // Configurar evento para donación
+    const esDonacion = document.getElementById('es_donacion');
+    if (esDonacion) {
+        esDonacion.addEventListener('change', toggleDonacion);
+    }
 });
+
+function toggleDonacion() {
+    const esDonacion = document.getElementById('es_donacion');
+    const observacionesDonacion = document.getElementById('observacionesDonacion');
+    const proveedorFacturaSection = document.getElementById('proveedorFacturaSection');
+    const proveedorSelect = document.getElementById('proveedor_id');
+    const numeroFacturaInput = document.getElementById('numero_factura');
+    
+    if (esDonacion.checked) {
+        observacionesDonacion.style.display = 'block';
+        proveedorFacturaSection.style.display = 'none';
+        // Remover required de proveedor y factura para donaciones
+        if (proveedorSelect) proveedorSelect.removeAttribute('required');
+        if (numeroFacturaInput) numeroFacturaInput.removeAttribute('required');
+    } else {
+        observacionesDonacion.style.display = 'none';
+        proveedorFacturaSection.style.display = 'block';
+        // Restaurar required para compras
+        if (proveedorSelect) proveedorSelect.setAttribute('required', 'required');
+        if (numeroFacturaInput) numeroFacturaInput.setAttribute('required', 'required');
+    }
+    validarFormulario();
+}
+
+function agregarArticulo() {
+    const container = document.getElementById('articulosContainer');
+
+    const newArticulo = document.createElement('div');
+    newArticulo.classList.add('mb-4', 'articulo-entry');
+    newArticulo.innerHTML = `
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-box"></i> Artículo ${articuloIndex + 1}</h6>
+                <button type="button" class="btn btn-danger btn-sm" onclick="removeArticulo(${articuloIndex})">
+                    <i class="fas fa-trash-alt"></i> Eliminar
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="nombre_${articuloIndex}" class="form-label">
+                            <i class="fas fa-tag"></i> Nombre del Artículo <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" name="nombre_${articuloIndex}" id="nombre_${articuloIndex}"
+                               class="form-control" required placeholder="Descripción del artículo"
+                               list="articulos-existentes" autocomplete="off">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="cuenta_contable_${articuloIndex}" class="form-label">
+                            <i class="fas fa-calculator"></i> Cuenta Contable <span class="text-danger">*</span>
+                        </label>
+                        <input type="text" name="cuenta_contable_${articuloIndex}" id="cuenta_contable_${articuloIndex}"
+                               class="form-control" required placeholder="Código de cuenta contable">
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <label for="serial_${articuloIndex}" class="form-label">
+                            <i class="fas fa-barcode"></i> Serial (Opcional)
+                        </label>
+                        <input type="text" name="serial_${articuloIndex}" id="serial_${articuloIndex}"
+                               class="form-control" placeholder="Número de serie del artículo">
+                        <div class="form-text">Solo para artículos que requieran número de serie</div>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="codigo_identificacion_${articuloIndex}" class="form-label">
+                            <i class="fas fa-qrcode"></i> Código de Identificación (Opcional)
+                        </label>
+                        <input type="text" name="codigo_identificacion_${articuloIndex}" id="codigo_identificacion_${articuloIndex}"
+                               class="form-control" placeholder="Código único de identificación">
+                        <div class="form-text">Código interno o etiqueta de identificación</div>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-3">
+                        <label for="cantidad_${articuloIndex}" class="form-label">
+                            <i class="fas fa-sort-numeric-up"></i> Cantidad <span class="text-danger">*</span>
+                        </label>
+                        <input type="number" name="cantidad_${articuloIndex}" id="cantidad_${articuloIndex}"
+                               class="form-control" min="1" required onchange="calcularTotalArticulo(${articuloIndex})">
+                    </div>
+                    <div class="col-md-3">
+                        <label for="valor_unitario_${articuloIndex}" class="form-label">
+                            <i class="fas fa-dollar-sign"></i> Valor Unitario <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="valor_unitario_${articuloIndex}" id="valor_unitario_${articuloIndex}"
+                                   class="form-control" step="0.01" min="0" required onchange="calcularTotalArticulo(${articuloIndex})">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="valor_total_${articuloIndex}" class="form-label">
+                            <i class="fas fa-money-bill-wave"></i> Valor Total
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" name="valor_total_${articuloIndex}" id="valor_total_${articuloIndex}"
+                                   class="form-control" readonly>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">
+                            <i class="fas fa-warehouse"></i> Stock
+                        </label>
+                        <div class="row">
+                            <div class="col-6">
+                                <label for="stock_min_${articuloIndex}" class="form-label text-muted small">Mínimo</label>
+                                <input type="number" name="stock_min_${articuloIndex}" id="stock_min_${articuloIndex}"
+                                       class="form-control" value="5" min="0" placeholder="5">
+                            </div>
+                            <div class="col-6">
+                                <label for="stock_max_${articuloIndex}" class="form-label text-muted small">Máximo</label>
+                                <input type="number" name="stock_max_${articuloIndex}" id="stock_max_${articuloIndex}"
+                                       class="form-control" value="100" min="1" placeholder="100">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    container.appendChild(newArticulo);
+    articuloIndex++;
+    
+    // Propagar número de factura si existe
+    propagarNumeroFactura();
+    
+    actualizarResumen();
+    validarFormulario();
+}
+
+function removeArticulo(index) {
+    const articuloEntry = document.getElementById(`nombre_${index}`).closest('.articulo-entry');
+    articuloEntry.remove();
+    actualizarResumen();
+    validarFormulario();
+}
+
+function calcularTotalArticulo(index) {
+    const cantidadInput = document.getElementById(`cantidad_${index}`);
+    const valorUnitarioInput = document.getElementById(`valor_unitario_${index}`);
+    const valorTotalInput = document.getElementById(`valor_total_${index}`);
+    
+    const cantidad = parseFloat(cantidadInput.value) || 0;
+    const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
+    const valorTotal = cantidad * valorUnitario;
+    
+    valorTotalInput.value = valorTotal.toFixed(2);
+    actualizarResumen();
+}
+
+function actualizarResumen() {
+    const articulos = document.querySelectorAll('.articulo-entry');
+    const resumenCard = document.getElementById('resumenCard');
+    
+    if (articulos.length === 0) {
+        resumenCard.style.display = 'none';
+        return;
+    }
+    
+    resumenCard.style.display = 'block';
+    
+    let totalArticulos = articulos.length;
+    let totalUnidades = 0;
+    let totalValor = 0;
+    
+    articulos.forEach((articulo, index) => {
+        const cantidadInput = articulo.querySelector(`input[name^="cantidad_"]`);
+        const valorTotalInput = articulo.querySelector(`input[name^="valor_total_"]`);
+        
+        if (cantidadInput && valorTotalInput) {
+            totalUnidades += parseFloat(cantidadInput.value) || 0;
+            totalValor += parseFloat(valorTotalInput.value) || 0;
+        }
+    });
+    
+    document.getElementById('totalArticulos').textContent = totalArticulos;
+    document.getElementById('totalUnidades').textContent = totalUnidades;
+    document.getElementById('totalValor').textContent = `$${totalValor.toFixed(2)}`;
+}
+
+function validarFormulario() {
+    const esDonacion = document.getElementById('es_donacion');
+    const proveedorSelect = document.getElementById('proveedor_id');
+    const numeroFacturaInput = document.getElementById('numero_factura');
+    const articulos = document.querySelectorAll('.articulo-entry');
+    const submitButton = document.getElementById('btnSubmit');
+    
+    const articulosValidos = articulos.length > 0;
+    let formularioValido = articulosValidos;
+    
+    // Si NO es donación, validar proveedor y factura
+    if (!esDonacion.checked) {
+        const proveedorValido = proveedorSelect && proveedorSelect.value;
+        const facturaValida = numeroFacturaInput && numeroFacturaInput.value.trim();
+        formularioValido = articulosValidos && proveedorValido && facturaValida;
+    }
+    
+    if (submitButton) {
+        submitButton.disabled = !formularioValido;
+        submitButton.innerHTML = esDonacion.checked ?
+            '<i class="fas fa-gift"></i> Registrar Donación' :
+            '<i class="fas fa-save"></i> Crear Artículos';
+    }
+}
+
+// Event listeners para validación
+document.addEventListener('change', function(e) {
+    if (e.target.id === 'proveedor_id' || e.target.id === 'numero_factura') {
+        validarFormulario();
+        // Propagar número de factura a todos los artículos
+        if (e.target.id === 'numero_factura') {
+            propagarNumeroFactura();
+        }
+    }
+});
+
+function propagarNumeroFactura() {
+    const numeroFactura = document.getElementById('numero_factura').value;
+    const inputs = document.querySelectorAll('input[name^="cuenta_contable_"]');
+    inputs.forEach(input => {
+        if (!input.value.trim()) {
+            input.value = numeroFactura;
+        }
+    });
+}
 
 function setupCharacterCounter(inputId, counterId, maxLength) {
     const input = document.getElementById(inputId);

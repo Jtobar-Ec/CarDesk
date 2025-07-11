@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+
+{% block title %}Asignación Múltiple - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-users-cog"></i> Asignación Múltiple de Artículos
+            </h1>
+            <a href="{{ url_for('articulos.listar_asignaciones') }}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Volver a Asignaciones
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Información:</strong> Seleccione una persona y agregue los artículos que desea asignar. Puede agregar múltiples artículos en una sola operación.
+                </div>
+
+                <form method="POST" id="asignacionForm">
+                    <!-- Selección de Persona -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="persona_id" class="form-label">
+                                <i class="fas fa-user"></i> Personal a Asignar <span class="text-danger">*</span>
+                            </label>
+                            <select class="form-select" name="persona_id" id="persona_id" required>
+                                <option value="">Seleccionar persona...</option>
+                                {% for persona in personas %}
+                                <option value="{{ persona.id }}">
+                                    {{ persona.pe_nombre }} {{ persona.pe_apellido or '' }} 
+                                    {% if persona.pe_cargo %}- {{ persona.pe_cargo }}{% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="observaciones" class="form-label">
+                                <i class="fas fa-comment"></i> Observaciones Generales
+                            </label>
+                            <textarea class="form-control" name="observaciones" id="observaciones" rows="3" 
+                                      placeholder="Observaciones para todas las asignaciones..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Artículos a Asignar -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5><i class="fas fa-boxes"></i> Artículos a Asignar</h5>
+                            <button type="button" class="btn btn-success btn-sm" onclick="agregarArticulo()">
+                                <i class="fas fa-plus"></i> Agregar Artículo
+                            </button>
+                        </div>
+
+                        <div id="articulosContainer">
+                            <!-- Los artículos se agregarán dinámicamente aquí -->
+                        </div>
+
+                        <div class="text-muted mt-2">
+                            <small><i class="fas fa-lightbulb"></i> Haga clic en "Agregar Artículo" para comenzar a seleccionar artículos.</small>
+                        </div>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div class="d-flex justify-content-end gap-2">
+                        <a href="{{ url_for('articulos.listar_asignaciones') }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="btnSubmit" disabled>
+                            <i class="fas fa-check"></i> Procesar Asignaciones
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let articuloIndex = 0;
+    
+    function agregarArticulo() {
+        const container = document.getElementById('articulosContainer');
+
+        const newArticulo = document.createElement('div');
+        newArticulo.classList.add('mb-4');
+        newArticulo.classList.add('articulo-entry');
+        newArticulo.innerHTML = `
+            <div class="row">
+                <div class="col-md-4">
+                    <label for="articulo_id_${articuloIndex}" class="form-label">
+                        <i class="fas fa-cogs"></i> Artículo <span class="text-danger">*</span>
+                    </label>
+                    <select name="articulo_id_${articuloIndex}" id="articulo_id_${articuloIndex}" class="form-select" required onchange="updateArticulo(${articuloIndex})">
+                        <option value="">Seleccionar artículo...</option>
+                        {% for articulo, item in articulos %}
+                        <option value="{{ articulo.i_id }}" data-stock="{{ item.i_cantidad }}" data-unit-value="{{ item.i_vUnitario }}">
+                            {{ item.i_nombre }} (Stock: {{ item.i_cantidad }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="cantidad_${articuloIndex}" class="form-label">
+                        <i class="fas fa-sort-numeric-up"></i> Cantidad <span class="text-danger">*</span>
+                    </label>
+                    <input type="number" name="cantidad_${articuloIndex}" id="cantidad_${articuloIndex}" class="form-control" min="1" required onchange="updateTotal(${articuloIndex})">
+                </div>
+                <div class="col-md-2">
+                    <label for="valor_unitario_${articuloIndex}" class="form-label">
+                        <i class="fas fa-dollar-sign"></i> Valor Unitario
+                    </label>
+                    <input type="number" name="valor_unitario_${articuloIndex}" id="valor_unitario_${articuloIndex}" class="form-control" readonly>
+                </div>
+                <div class="col-md-2">
+                    <label for="valor_total_${articuloIndex}" class="form-label">
+                        <i class="fas fa-money-bill-wave"></i> Valor Total
+                    </label>
+                    <input type="number" name="valor_total_${articuloIndex}" id="valor_total_${articuloIndex}" class="form-control" readonly>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="button" class="btn btn-danger w-100" onclick="removeArticulo(${articuloIndex})">
+                        <i class="fas fa-trash-alt"></i> Eliminar
+                    </button>
+                </div>
+            </div>
+        `;
+
+        container.appendChild(newArticulo);
+        articuloIndex++;
+        checkForm();
+    }
+
+    function updateArticulo(index) {
+        const articuloSelect = document.getElementById(`articulo_id_${index}`);
+        const cantidadInput = document.getElementById(`cantidad_${index}`);
+        const valorUnitarioInput = document.getElementById(`valor_unitario_${index}`);
+        const valorTotalInput = document.getElementById(`valor_total_${index}`);
+        
+        const selectedOption = articuloSelect.options[articuloSelect.selectedIndex];
+        const stock = selectedOption.getAttribute('data-stock');
+        const valorUnitario = parseFloat(selectedOption.getAttribute('data-unit-value'));
+        
+        valorUnitarioInput.value = valorUnitario;
+        cantidadInput.setAttribute('max', stock);
+        
+        updateTotal(index);
+        checkForm();
+    }
+
+    function updateTotal(index) {
+        const cantidadInput = document.getElementById(`cantidad_${index}`);
+        const valorUnitarioInput = document.getElementById(`valor_unitario_${index}`);
+        const valorTotalInput = document.getElementById(`valor_total_${index}`);
+        
+        const cantidad = parseInt(cantidadInput.value) || 0;
+        const valorUnitario = parseFloat(valorUnitarioInput.value) || 0;
+
+        const maxCantidad = parseInt(cantidadInput.getAttribute('max')) || 0;
+        if (cantidad > maxCantidad) {
+            alert(`No puede asignar más de ${maxCantidad} unidades de este artículo.`);
+            cantidadInput.value = maxCantidad;
+        }
+
+        const valorTotal = cantidad * valorUnitario;
+        valorTotalInput.value = valorTotal.toFixed(2);
+    }
+
+    function removeArticulo(index) {
+        const articuloEntry = document.getElementById(`articulo_id_${index}`).closest('.articulo-entry');
+        articuloEntry.remove();
+        checkForm();
+    }
+
+    function checkForm() {
+        const form = document.getElementById('asignacionForm');
+        const submitButton = document.getElementById('btnSubmit');
+        const articulosContainer = document.getElementById('articulosContainer');
+        
+        if (articulosContainer.querySelectorAll('.articulo-entry').length > 0) {
+            submitButton.disabled = false;
+        } else {
+            submitButton.disabled = true;
+        }
+    }
+
+</script>
+
+{% endblock %}

@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Vista Previa de Asignaciones - Conservatorio Kardex{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>
+                <i class="fas fa-eye"></i> Vista Previa de Asignaciones Procesadas
+            </h1>
+            <div class="btn-group">
+                <a href="{{ url_for('articulos.vista_previa_asignaciones', persona_id=persona.id, articulos=request.args.get('articulos'), observaciones=request.args.get('observaciones'), export='pdf') }}" 
+                   class="btn btn-danger">
+                    <i class="fas fa-file-pdf"></i> Exportar PDF
+                </a>
+                <a href="{{ url_for('articulos.listar_asignaciones') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list"></i> Ver Todas las Asignaciones
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alerta de éxito -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle"></i>
+            <strong>¡Asignaciones Procesadas Exitosamente!</strong> 
+            Se han registrado {{ total_articulos }} asignación(es) para {{ persona.pe_nombre }} {{ persona.pe_apellido or '' }}.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<!-- Información del Personal -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user"></i> Información del Personal Asignado
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Nombre Completo:</strong></td>
+                                <td>{{ persona.pe_nombre }} {{ persona.pe_apellido or '' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Cargo:</strong></td>
+                                <td>{{ persona.pe_cargo or 'No especificado' }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Estado:</strong></td>
+                                <td>
+                                    <span class="badge bg-success">{{ persona.pe_estado }}</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <table class="table table-borderless">
+                            <tr>
+                                <td><strong>Fecha de Asignación:</strong></td>
+                                <td>{{ fecha_asignacion }}</td>
+                            </tr>
+                            {% if observaciones %}
+                            <tr>
+                                <td><strong>Observaciones:</strong></td>
+                                <td>{{ observaciones }}</td>
+                            </tr>
+                            {% endif %}
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Resumen de Asignación -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-bar"></i> Resumen de Asignación
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h3 class="text-primary">{{ total_articulos }}</h3>
+                                <p class="mb-0">Artículos Diferentes</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h3 class="text-success">{{ total_cantidad }}</h3>
+                                <p class="mb-0">Unidades Totales</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h3 class="text-warning">${{ "%.2f"|format(total_valor) }}</h3>
+                                <p class="mb-0">Valor Total</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h3 class="text-info">${{ "%.2f"|format(total_valor / total_articulos if total_articulos > 0 else 0) }}</h3>
+                                <p class="mb-0">Promedio por Artículo</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Detalle de Artículos Asignados -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-boxes"></i> Detalle de Artículos Asignados
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if asignaciones %}
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th><i class="fas fa-cogs"></i> Artículo</th>
+                                <th><i class="fas fa-barcode"></i> Código</th>
+                                <th><i class="fas fa-sort-numeric-up"></i> Cantidad</th>
+                                <th><i class="fas fa-dollar-sign"></i> Valor Unitario</th>
+                                <th><i class="fas fa-money-bill-wave"></i> Valor Total</th>
+                                <th><i class="fas fa-info-circle"></i> Estado</th>
+                                <th><i class="fas fa-calendar"></i> Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for consumo, item in asignaciones %}
+                            <tr>
+                                <td>
+                                    <strong>{{ item.i_nombre }}</strong>
+                                </td>
+                                <td>
+                                    <code>{{ item.i_codigo }}</code>
+                                </td>
+                                <td>
+                                    <span class="badge bg-primary">{{ consumo.c_cantidad }}</span>
+                                </td>
+                                <td>
+                                    ${{ "%.2f"|format(consumo.c_valorUnitario) }}
+                                </td>
+                                <td>
+                                    <strong>${{ "%.2f"|format(consumo.c_valorTotal) }}</strong>
+                                </td>
+                                <td>
+                                    {% if consumo.c_estado == 'Asignado' %}
+                                        <span class="badge bg-success">{{ consumo.c_estado }}</span>
+                                    {% elif consumo.c_estado == 'Devuelto' %}
+                                        <span class="badge bg-info">{{ consumo.c_estado }}</span>
+                                    {% elif consumo.c_estado == 'Perdido' %}
+                                        <span class="badge bg-danger">{{ consumo.c_estado }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ consumo.c_estado }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ consumo.c_fecha.strftime('%d/%m/%Y') if consumo.c_fecha else 'N/A' }}
+                                    {% if consumo.c_hora %}
+                                        <br><small class="text-muted">{{ consumo.c_hora.strftime('%H:%M:%S') }}</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="2">TOTALES:</th>
+                                <th><span class="badge bg-primary">{{ total_cantidad }}</span></th>
+                                <th>-</th>
+                                <th><strong>${{ "%.2f"|format(total_valor) }}</strong></th>
+                                <th colspan="2">-</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                    <h5>No se encontraron asignaciones</h5>
+                    <p class="text-muted">No hay datos de asignaciones para mostrar.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-cerrar la alerta después de 10 segundos
+setTimeout(function() {
+    const alert = document.querySelector('.alert-success');
+    if (alert) {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+    }
+}, 10000);
+</script>
+
+{% endblock %}

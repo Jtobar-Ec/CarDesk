@@ -305,49 +305,196 @@ def _exportar_pdf(articulos):
 @bp.route('/nuevo', methods=['GET', 'POST'])
 @login_required
 def nuevo_articulo():
-    """Crear un nuevo artículo"""
+    """Crear múltiples artículos por proveedor en una factura"""
     if request.method == 'POST':
         try:
-            nombre = request.form['nombre']
-            cantidad = int(request.form['cantidad'])
-            valor_unitario = float(request.form['valor_unitario'])
-            cuenta_contable = request.form['cuenta_contable']
-            stock_min = int(request.form.get('stock_min', 0))
-            stock_max = int(request.form.get('stock_max', 100))
-            proveedor_id = request.form.get('proveedor_id')
+            # Validar datos según si es donación o compra
+            es_donacion = request.form.get('es_donacion') == 'on'
+            observaciones_donacion = request.form.get('observaciones_donacion', '').strip()
             
-            # Convertir proveedor_id a int si existe
-            if proveedor_id and proveedor_id.strip():
+            if not es_donacion:
+                # Solo validar proveedor y factura si NO es donación
+                proveedor_id = request.form.get('proveedor_id')
+                numero_factura = request.form.get('numero_factura', '').strip()
+                
+                if not proveedor_id:
+                    flash('Debe seleccionar un proveedor para compras', 'error')
+                    return redirect(url_for('articulos.nuevo_articulo'))
+                
+                if not numero_factura:
+                    flash('Debe ingresar el número de factura para compras', 'error')
+                    return redirect(url_for('articulos.nuevo_articulo'))
+                    
                 proveedor_id = int(proveedor_id)
             else:
+                # Para donaciones no se requiere proveedor ni factura
                 proveedor_id = None
+                numero_factura = "DONACIÓN"
             
-            articulo, item = articulo_service.crear_articulo(
-                nombre=nombre,
-                cantidad=cantidad,
-                valor_unitario=valor_unitario,
-                cuenta_contable=cuenta_contable,
-                stock_min=stock_min,
-                stock_max=stock_max,
-                usuario_id=current_user.id
-            )
+            if not es_donacion:
+                proveedor_id = int(proveedor_id)
+                
+                # Verificar que el proveedor existe
+                proveedor = proveedor_service.obtener_por_id(proveedor_id)
+                if not proveedor:
+                    flash('El proveedor seleccionado no existe', 'error')
+                    return redirect(url_for('articulos.nuevo_articulo'))
+            else:
+                proveedor = None
             
-            # Si se especificó un proveedor, registrar la entrada inicial
-            if proveedor_id and cantidad > 0:
-                articulo_service.registrar_entrada(
-                    item.id, cantidad, valor_unitario, current_user.id,
-                    proveedor_id=proveedor_id,
-                    observaciones=f"Entrada inicial del artículo {item.i_codigo}"
-                )
+            articulos_data = []
+            articulos_procesados = set()
             
-            flash('Artículo creado exitosamente', 'success')
-            return redirect(url_for('articulos.listar_articulos'))
+            # Procesar múltiples artículos del formulario
+            i = 0
+            while f'nombre_{i}' in request.form:
+                nombre = request.form.get(f'nombre_{i}', '').strip()
+                cuenta_contable = request.form.get(f'cuenta_contable_{i}', '').strip()
+                cantidad = request.form.get(f'cantidad_{i}')
+                valor_unitario = request.form.get(f'valor_unitario_{i}')
+                stock_min = request.form.get(f'stock_min_{i}', '5')
+                stock_max = request.form.get(f'stock_max_{i}', '100')
+                
+                if nombre and cuenta_contable and cantidad and valor_unitario:
+                    try:
+                        cantidad = int(cantidad)
+                        valor_unitario = float(valor_unitario)
+                        stock_min = int(stock_min) if stock_min else 5
+                        stock_max = int(stock_max) if stock_max else 100
+                        
+                        # Validaciones básicas
+                        if cantidad <= 0:
+                            flash(f'La cantidad del artículo "{nombre}" debe ser mayor a 0', 'error')
+                            return redirect(url_for('articulos.nuevo_articulo'))
+                        
+                        if valor_unitario <= 0:
+                            flash(f'El valor unitario del artículo "{nombre}" debe ser mayor a 0', 'error')
+                            return redirect(url_for('articulos.nuevo_articulo'))
+                        
+                        if stock_min < 0 or stock_max <= 0 or stock_max <= stock_min:
+                            flash(f'Los valores de stock del artículo "{nombre}" no son válidos', 'error')
+                            return redirect(url_for('articulos.nuevo_articulo'))
+                        
+                        # Verificar duplicados por nombre
+                        nombre_lower = nombre.lower()
+                        if nombre_lower in articulos_procesados:
+                            flash(f'No puede agregar el mismo artículo "{nombre}" múltiples veces', 'error')
+                            return redirect(url_for('articulos.nuevo_articulo'))
+                        
+                        # Obtener campos opcionales
+                        serial = request.form.get(f'serial_{i}', '').strip()
+                        codigo_identificacion = request.form.get(f'codigo_identificacion_{i}', '').strip()
+                        
+                        articulos_data.append({
+                            'nombre': nombre,
+                            'cuenta_contable': cuenta_contable,
+                            'cantidad': cantidad,
+                            'valor_unitario': valor_unitario,
+                            'stock_min': stock_min,
+                            'stock_max': stock_max,
+                            'serial': serial if serial else None,
+                            'codigo_identificacion': codigo_identificacion if codigo_identificacion else None
+                        })
+                        articulos_procesados.add(nombre_lower)
+                        
+                    except (ValueError, TypeError) as e:
+                        flash(f'Error en los datos del artículo "{nombre}": valores inválidos', 'error')
+                        return redirect(url_for('articulos.nuevo_articulo'))
+                
+                i += 1
+            
+            # Validar que se hayan agregado artículos
+            if not articulos_data:
+                flash('Debe agregar al menos un artículo válido', 'error')
+                return redirect(url_for('articulos.nuevo_articulo'))
+            
+            # Procesar todos los artículos
+            articulos_creados = 0
+            errores = []
+            
+            try:
+                # Usar transacción para asegurar consistencia
+                for articulo_data in articulos_data:
+                    try:
+                        # Crear el artículo
+                        articulo, item = articulo_service.crear_articulo(
+                            nombre=articulo_data['nombre'],
+                            cantidad=articulo_data['cantidad'],
+                            valor_unitario=articulo_data['valor_unitario'],
+                            cuenta_contable=articulo_data['cuenta_contable'],
+                            stock_min=articulo_data['stock_min'],
+                            stock_max=articulo_data['stock_max'],
+                            usuario_id=current_user.id,
+                            serial=articulo_data.get('serial'),
+                            codigo_identificacion=articulo_data.get('codigo_identificacion')
+                        )
+                        
+                        # Preparar observaciones con información de donación
+                        if es_donacion:
+                            observaciones_entrada = f"Entrada inicial - DONACIÓN - {articulo_data['cuenta_contable']}"
+                        else:
+                            observaciones_entrada = f"Entrada inicial - Factura: {numero_factura} - {articulo_data['cuenta_contable']}"
+                        if es_donacion:
+                            observaciones_entrada += f" [DONACIÓN]"
+                            if observaciones_donacion:
+                                observaciones_entrada += f" - {observaciones_donacion}"
+                        
+                        # Registrar la entrada inicial con el proveedor
+                        articulo_service.registrar_entrada(
+                            item.id,
+                            articulo_data['cantidad'],
+                            articulo_data['valor_unitario'],
+                            current_user.id,
+                            proveedor_id=proveedor_id,
+                            observaciones=observaciones_entrada
+                        )
+                        
+                        articulos_creados += 1
+                        
+                    except Exception as e:
+                        errores.append(f"{articulo_data['nombre']}: {str(e)}")
+                        db.session.rollback()
+                        continue
+                
+                # Mostrar resultados
+                if articulos_creados > 0:
+                    if es_donacion:
+                        flash(f'Se registraron {articulos_creados} artículo(s) como DONACIÓN exitosamente', 'success')
+                    else:
+                        flash(f'Se crearon {articulos_creados} artículo(s) exitosamente - COMPRA del proveedor {proveedor.p_razonsocial} - Factura: {numero_factura}', 'success')
+                
+                if errores:
+                    for error in errores:
+                        flash(f'Error: {error}', 'warning')
+                
+                # Redirigir según el resultado
+                if articulos_creados > 0:
+                    return redirect(url_for('articulos.listar_articulos'))
+                else:
+                    return redirect(url_for('articulos.nuevo_articulo'))
+                    
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error general en el procesamiento: {str(e)}', 'error')
+                return redirect(url_for('articulos.nuevo_articulo'))
+            
         except Exception as e:
-            flash(f'Error al crear artículo: {str(e)}', 'error')
+            flash(f'Error al crear artículos: {str(e)}', 'error')
+            return redirect(url_for('articulos.nuevo_articulo'))
     
-    # Obtener todos los proveedores para el formulario
-    proveedores = proveedor_service.obtener_todos()
-    return render_template('articulos/form.html', proveedores=proveedores)
+    # GET: Mostrar formulario
+    try:
+        # Obtener todos los proveedores para el formulario
+        proveedores = proveedor_service.obtener_todos()
+        # Obtener artículos existentes para autocompletado
+        articulos_existentes = articulo_service.obtener_todos()
+        return render_template('articulos/form.html',
+                             proveedores=proveedores,
+                             articulos_existentes=articulos_existentes)
+        
+    except Exception as e:
+        flash(f'Error al cargar el formulario: {str(e)}', 'error')
+        return redirect(url_for('articulos.listar_articulos'))
 @bp.route('/<int:articulo_id>/detalle')
 @login_required
 def detalle_articulo(articulo_id):
@@ -542,6 +689,7 @@ def registrar_entrada(articulo_id):
         cantidad = int(request.form['cantidad'])
         valor_unitario = float(request.form['valor_unitario'])
         proveedor_id = request.form.get('proveedor_id')
+        numero_factura = request.form.get('numero_factura', '').strip()
         observaciones = request.form.get('observaciones')
         usuario_id = current_user.id
         
@@ -550,6 +698,11 @@ def registrar_entrada(articulo_id):
             proveedor_id = int(proveedor_id)
         else:
             proveedor_id = None
+        
+        # Preparar observaciones con número de factura
+        observaciones_final = observaciones or ""
+        if numero_factura:
+            observaciones_final = f"Factura: {numero_factura}" + (f" - {observaciones}" if observaciones else "")
         
         # Obtener el item_id correcto
         resultado = articulo_service.obtener_por_id(articulo_id)
@@ -562,7 +715,7 @@ def registrar_entrada(articulo_id):
         from datetime import datetime
         articulo_service.registrar_entrada(
             item.id, cantidad, valor_unitario, usuario_id,
-            proveedor_id=proveedor_id, observaciones=observaciones,
+            proveedor_id=proveedor_id, observaciones=observaciones_final,
             fecha_hora=datetime.now()
         )
         
@@ -571,6 +724,46 @@ def registrar_entrada(articulo_id):
         flash(f'Error al registrar entrada: {str(e)}', 'error')
     
     return redirect(request.referrer or url_for('articulos.listar_articulos'))
+
+@bp.route('/<int:articulo_id>/cambiar-estado', methods=['POST'])
+@login_required
+def cambiar_estado(articulo_id):
+    """Cambiar estado de un artículo (Activo, Dañado, Baja)"""
+    try:
+        # Obtener el artículo
+        resultado = articulo_service.obtener_por_id(articulo_id)
+        if not resultado:
+            flash('Artículo no encontrado', 'error')
+            return redirect(url_for('articulos.listar_articulos'))
+        
+        articulo, item = resultado
+        
+        nuevo_estado = request.form.get('nuevo_estado')
+        observaciones_estado = request.form.get('observaciones_estado', '').strip()
+        
+        if not nuevo_estado or nuevo_estado not in ['Activo', 'Dañado', 'Baja']:
+            flash('Estado inválido', 'error')
+            return redirect(url_for('articulos.listar_articulos'))
+        
+        # Actualizar estado
+        item.i_estado = nuevo_estado
+        item.i_observaciones_estado = observaciones_estado if observaciones_estado else None
+        
+        db.session.commit()
+        
+        # Mensaje según el estado
+        if nuevo_estado == 'Dañado':
+            flash(f'Artículo "{item.i_nombre}" marcado como DAÑADO', 'warning')
+        elif nuevo_estado == 'Baja':
+            flash(f'Artículo "{item.i_nombre}" dado de BAJA', 'info')
+        else:
+            flash(f'Artículo "{item.i_nombre}" reactivado', 'success')
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error al cambiar estado: {str(e)}', 'error')
+    
+    return redirect(url_for('articulos.listar_articulos'))
 
 @bp.route('/asignaciones')
 @login_required
@@ -1405,3 +1598,355 @@ def _exportar_asignaciones_pdf(asignaciones):
     
     return response
 
+
+@bp.route('/asignacion-multiple', methods=['GET', 'POST'])
+@login_required
+def asignacion_multiple():
+    """Permite asignar múltiples artículos a una persona"""
+    from app.database.models import Persona, Articulo, Item
+    from app.services.articulo_service import ArticuloService
+    
+    articulo_service = ArticuloService()
+
+    if request.method == 'POST':
+        try:
+            # Validar que se haya seleccionado una persona
+            persona_id = request.form.get('persona_id')
+            if not persona_id:
+                flash('Debe seleccionar una persona', 'error')
+                return redirect(url_for('articulos.asignacion_multiple'))
+            
+            persona_id = int(persona_id)
+            
+            # Verificar que la persona existe y está activa
+            persona = Persona.query.get(persona_id)
+            if not persona:
+                flash('La persona seleccionada no existe', 'error')
+                return redirect(url_for('articulos.asignacion_multiple'))
+            
+            if persona.pe_estado != 'Activo':
+                flash('Solo se puede asignar artículos a personal activo', 'error')
+                return redirect(url_for('articulos.asignacion_multiple'))
+            
+            articulos_data = []
+            articulos_procesados = set()
+            
+            # Procesar múltiples artículos del formulario
+            i = 0
+            while f'articulo_id_{i}' in request.form:
+                articulo_id = request.form.get(f'articulo_id_{i}')
+                cantidad = request.form.get(f'cantidad_{i}')
+                valor_unitario = request.form.get(f'valor_unitario_{i}')
+                
+                if articulo_id and cantidad and valor_unitario:
+                    try:
+                        articulo_id = int(articulo_id)
+                        cantidad = int(cantidad)
+                        valor_unitario = float(valor_unitario)
+                        
+                        # Validaciones básicas
+                        if cantidad <= 0:
+                            flash('La cantidad debe ser mayor a 0', 'error')
+                            return redirect(url_for('articulos.asignacion_multiple'))
+                        
+                        if valor_unitario <= 0:
+                            flash('El valor unitario debe ser mayor a 0', 'error')
+                            return redirect(url_for('articulos.asignacion_multiple'))
+                        
+                        # Verificar duplicados
+                        if articulo_id in articulos_procesados:
+                            flash('No puede seleccionar el mismo artículo múltiples veces', 'error')
+                            return redirect(url_for('articulos.asignacion_multiple'))
+                        
+                        # Verificar que el artículo existe y tiene stock
+                        resultado = articulo_service.obtener_por_id(articulo_id)
+                        if not resultado:
+                            flash(f'Artículo con ID {articulo_id} no encontrado', 'error')
+                            return redirect(url_for('articulos.asignacion_multiple'))
+                        
+                        articulo, item = resultado
+                        
+                        # Verificar stock disponible
+                        if item.i_cantidad < cantidad:
+                            flash(f'Stock insuficiente para {item.i_nombre}. Disponible: {item.i_cantidad}, Solicitado: {cantidad}', 'error')
+                            return redirect(url_for('articulos.asignacion_multiple'))
+                        
+                        articulos_data.append({
+                            'articulo_id': articulo_id,
+                            'cantidad': cantidad,
+                            'valor_unitario': valor_unitario,
+                            'nombre': item.i_nombre,
+                            'codigo': item.i_codigo
+                        })
+                        articulos_procesados.add(articulo_id)
+                        
+                    except (ValueError, TypeError) as e:
+                        flash(f'Error en los datos del artículo {i+1}: valores inválidos', 'error')
+                        return redirect(url_for('articulos.asignacion_multiple'))
+                
+                i += 1
+            
+            # Validar que se hayan agregado artículos
+            if not articulos_data:
+                flash('Debe agregar al menos un artículo válido', 'error')
+                return redirect(url_for('articulos.asignacion_multiple'))
+            
+            observaciones = request.form.get('observaciones', '').strip()
+            
+            # Procesar todas las asignaciones
+            asignaciones_exitosas = 0
+            errores = []
+            
+            try:
+                # Usar transacción para asegurar consistencia
+                for articulo_data in articulos_data:
+                    try:
+                        # Registrar la asignación
+                        movimiento, consumo = articulo_service.registrar_salida_con_asignacion(
+                            articulo_data['articulo_id'],
+                            articulo_data['cantidad'],
+                            articulo_data['valor_unitario'],
+                            current_user.id,
+                            persona_id,
+                            f"Asignación múltiple - {observaciones}" if observaciones else "Asignación múltiple"
+                        )
+                        asignaciones_exitosas += 1
+                        
+                    except Exception as e:
+                        errores.append(f"{articulo_data['codigo']} - {articulo_data['nombre']}: {str(e)}")
+                        db.session.rollback()
+                        continue
+                
+                # Mostrar resultados
+                if asignaciones_exitosas > 0:
+                    flash(f'Se procesaron {asignaciones_exitosas} asignación(es) exitosamente para {persona.pe_nombre}', 'success')
+                
+                if errores:
+                    for error in errores:
+                        flash(f'Error: {error}', 'warning')
+                
+                # Redirigir según el resultado
+                if asignaciones_exitosas > 0:
+                    # Redirigir a vista previa con datos de las asignaciones procesadas
+                    articulos_procesados_ids = [str(data['articulo_id']) for data in articulos_data]
+                    return redirect(url_for('articulos.vista_previa_asignaciones',
+                                          persona_id=persona_id,
+                                          articulos=','.join(articulos_procesados_ids),
+                                          observaciones=observaciones))
+                else:
+                    return redirect(url_for('articulos.asignacion_multiple'))
+                    
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error general en el procesamiento: {str(e)}', 'error')
+                return redirect(url_for('articulos.asignacion_multiple'))
+            
+        except Exception as e:
+            flash(f'Error en la asignación múltiple: {str(e)}', 'error')
+            return redirect(url_for('articulos.asignacion_multiple'))
+    
+    # GET: Mostrar formulario
+    try:
+        # Obtener personas activas
+        personas = Persona.query.filter_by(pe_estado='Activo').all()
+        
+        # Obtener artículos con stock disponible
+        articulos = db.session.query(Articulo, Item).join(
+            Item, Articulo.i_id == Item.id
+        ).filter(
+            Item.i_cantidad > 0
+        ).order_by(Item.i_nombre).all()
+        
+        return render_template('articulos/asignacion_multiple.html',
+                             personas=personas,
+                             articulos=articulos)
+                             
+    except Exception as e:
+        flash(f'Error al cargar el formulario: {str(e)}', 'error')
+        return redirect(url_for('articulos.listar_asignaciones'))
+
+@bp.route('/vista-previa-asignaciones')
+@login_required
+def vista_previa_asignaciones():
+    """Vista previa informativa de asignaciones procesadas con opción de exportación PDF"""
+    from app.database.models import Persona, Consumo, Item
+    
+    try:
+        # Obtener parámetros
+        persona_id = request.args.get('persona_id', type=int)
+        articulos_ids = request.args.get('articulos', '').split(',')
+        observaciones = request.args.get('observaciones', '')
+        export_format = request.args.get('export')
+        
+        if not persona_id or not articulos_ids or not articulos_ids[0]:
+            flash('Datos de vista previa no válidos', 'error')
+            return redirect(url_for('articulos.listar_asignaciones'))
+        
+        # Obtener información de la persona
+        persona = Persona.query.get(persona_id)
+        if not persona:
+            flash('Persona no encontrada', 'error')
+            return redirect(url_for('articulos.listar_asignaciones'))
+        
+        # Obtener las asignaciones más recientes de esta persona para los artículos especificados
+        asignaciones_query = db.session.query(Consumo, Item).join(
+            Item, Consumo.i_id == Item.id
+        ).filter(
+            Consumo.pe_id == persona_id,
+            Consumo.i_id.in_([int(aid) for aid in articulos_ids if aid.isdigit()])
+        ).order_by(Consumo.c_fecha.desc(), Consumo.c_hora.desc())
+        
+        # Limitar a las asignaciones más recientes (últimas 10 por seguridad)
+        asignaciones_recientes = asignaciones_query.limit(len(articulos_ids)).all()
+        
+        # Calcular totales
+        total_articulos = len(asignaciones_recientes)
+        total_cantidad = sum(consumo.c_cantidad for consumo, _ in asignaciones_recientes)
+        total_valor = sum(float(consumo.c_valorTotal) for consumo, _ in asignaciones_recientes)
+        
+        # Manejar exportación PDF
+        if export_format == 'pdf':
+            return _exportar_vista_previa_pdf(persona, asignaciones_recientes, observaciones,
+                                            total_articulos, total_cantidad, total_valor)
+        
+        return render_template('articulos/vista_previa_asignaciones.html',
+                             persona=persona,
+                             asignaciones=asignaciones_recientes,
+                             observaciones=observaciones,
+                             total_articulos=total_articulos,
+                             total_cantidad=total_cantidad,
+                             total_valor=total_valor,
+                             fecha_asignacion=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
+                             
+    except Exception as e:
+        flash(f'Error al cargar vista previa: {str(e)}', 'error')
+        return redirect(url_for('articulos.listar_asignaciones'))
+
+def _exportar_vista_previa_pdf(persona, asignaciones, observaciones, total_articulos, total_cantidad, total_valor):
+    """Exporta la vista previa de asignaciones a PDF"""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                          rightMargin=0.75*inch, leftMargin=0.75*inch,
+                          topMargin=0.75*inch, bottomMargin=0.75*inch)
+    
+    elements = []
+    
+    # Crear cabecera institucional
+    elements.extend(crear_cabecera_pdf("Vista Previa de Asignaciones Múltiples"))
+    
+    # Información de la persona asignada
+    elements.append(Paragraph("INFORMACIÓN DEL PERSONAL", crear_estilos_pdf()['TituloSeccion']))
+    
+    persona_data = [
+        ['Nombre Completo:', f"{persona.pe_nombre} {persona.pe_apellido or ''}"],
+        ['Cargo:', persona.pe_cargo or 'No especificado'],
+        ['Estado:', persona.pe_estado],
+        ['Fecha de Asignación:', datetime.now().strftime('%d/%m/%Y %H:%M:%S')]
+    ]
+    
+    if observaciones:
+        persona_data.append(['Observaciones:', observaciones])
+    
+    persona_table = Table(persona_data, colWidths=[2*inch, 4*inch])
+    persona_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F8F9FA'))
+    ]))
+    
+    elements.append(persona_table)
+    elements.append(Spacer(1, 20))
+    
+    # Detalle de artículos asignados
+    detalle_headers = ['Artículo', 'Código', 'Cantidad', 'Valor Unit.', 'Valor Total', 'Estado', 'Fecha']
+    detalle_data = []
+    
+    for consumo, item in asignaciones:
+        detalle_data.append([
+            truncar_texto(item.i_nombre, 25),
+            item.i_codigo,
+            str(consumo.c_cantidad),
+            formatear_valor_moneda(consumo.c_valorUnitario),
+            formatear_valor_moneda(consumo.c_valorTotal),
+            consumo.c_estado,
+            formatear_fecha(consumo.c_fecha)
+        ])
+    
+    elements.extend(crear_tabla_detallada_pdf(
+        detalle_headers, detalle_data,
+        "DETALLE DE ARTÍCULOS ASIGNADOS",
+        [1.8*inch, 0.8*inch, 0.6*inch, 0.8*inch, 0.8*inch, 0.8*inch, 0.8*inch]
+    ))
+    
+    # Apartado de firmas
+    elements.append(Spacer(1, 30))
+    elements.append(Paragraph("FIRMAS DE RESPONSABILIDAD", crear_estilos_pdf()['TituloSeccion']))
+    elements.append(Spacer(1, 20))
+    
+    # Obtener nombre del usuario actual (quien despacha)
+    nombre_despachador = current_user.username if current_user.is_authenticated else 'Administrador'
+    
+    # Tabla de firmas simplificada (2x4)
+    firmas_data = [
+        ['ENTREGA', 'RECIBE'],
+        [f'Nombre: {nombre_despachador}', f'Nombre: {persona.pe_nombre} {persona.pe_apellido or ""}'],
+        [f'Cargo: Administrador del Sistema', f'Cargo: {persona.pe_cargo or "No especificado"}'],
+        ['Firma: _________________________', 'Firma: _________________________']
+    ]
+    
+    firmas_table = Table(firmas_data, colWidths=[3*inch, 3*inch])
+    firmas_table.setStyle(TableStyle([
+        # Encabezados
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E5984')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        
+        # Información de nombres y cargos (filas 1-2)
+        ('FONTNAME', (0, 1), (-1, 2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, 2), 10),
+        ('ALIGN', (0, 1), (-1, 2), 'CENTER'),
+        ('VALIGN', (0, 1), (-1, 2), 'MIDDLE'),
+        
+        # Líneas de firma (fila 3)
+        ('FONTNAME', (0, 3), (-1, 3), 'Helvetica'),
+        ('FONTSIZE', (0, 3), (-1, 3), 10),
+        ('ALIGN', (0, 3), (-1, 3), 'CENTER'),
+        ('VALIGN', (0, 3), (-1, 3), 'MIDDLE'),
+        
+        # Bordes
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('LEFTPADDING', (0, 0), (-1, -1), 12),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 12),
+        ('TOPPADDING', (0, 3), (-1, 3), 30),
+        ('BOTTOMPADDING', (0, 3), (-1, 3), 30),
+    ]))
+    
+    elements.append(firmas_table)
+    elements.append(Spacer(1, 20))
+    
+    # Nota final
+    nota_style = ParagraphStyle(
+        'NotaFinal',
+        parent=crear_estilos_pdf()['Normal'],
+        fontSize=8,
+        fontName='Helvetica-Oblique',
+        textColor=colors.HexColor('#666666'),
+        alignment=1
+    )
+    elements.append(Paragraph("Este documento certifica la entrega y recepción de los artículos detallados anteriormente.", nota_style))
+    
+    # Construir PDF
+    doc.build(elements)
+    buffer.seek(0)
+    
+    response = make_response(buffer.read())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=CNM_Vista_Previa_Asignaciones_{persona.pe_nombre.replace(" ", "_")}_{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf'
+    
+    return response

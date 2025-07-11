@@ -1,25 +1,29 @@
 from flask import Blueprint, render_template, request, jsonify, make_response, flash, redirect, url_for, send_file
 from flask_login import login_required, current_user
-from datetime import datetime, date, timedelta
+from datetime import datetime
 import os
 import shutil
-import sqlite3
-import zipfile
 import tempfile
-import io
+import zipfile
 from werkzeug.utils import secure_filename
 from app.database import db
 from app.database.models import MovimientoDetalle, Item, Articulo, Instrumento, Proveedor, Persona, Consumo, Entrada, Usuario
-from sqlalchemy import extract, text
+from app.services.import_service import ImportService
+from sqlalchemy import text
+import subprocess
 
 bp = Blueprint('migracion', __name__)
 
 # Configuración
 UPLOAD_FOLDER = 'temp_uploads'
-ALLOWED_EXTENSIONS = {'db', 'zip', 'sql'}
+ALLOWED_EXTENSIONS = {'zip', 'sql'} # Eliminado 'db'
 
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    """Verifica que el archivo tenga una extensión permitida"""
+    if '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    return ext in ALLOWED_EXTENSIONS
 
 @bp.route('/')
 @login_required
@@ -30,28 +34,30 @@ def index():
 @bp.route('/exportar-completa', methods=['POST'])
 @login_required
 def exportar_base_completa():
-    """Exportar toda la base de datos"""
+    """Exportar toda la base de datos desde MySQL"""
     try:
-        # Ruta de la base de datos actual
-        db_path = os.path.join('instance', 'conservatorio.db')
+        # Credenciales y nombre de la base de datos
+        db_user = 'flaskuser'
+        db_password = 'flaskpass'
+        db_name = 'sistema_inventario'
         
-        if not os.path.exists(db_path):
-            return jsonify({'error': 'Base de datos no encontrada'}), 404
+        # Crear archivo temporal para el volcado
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.sql')
+
+        # Usar mysqldump para exportar la base de datos
+        mysqldump_command = f"mysqldump -u {db_user} -p{db_password} {db_name} > {temp_file.name}"
+
+        # Ejecutar el comando mysqldump
+        subprocess.run(mysqldump_command, shell=True, check=True)
         
-        # Crear archivo temporal
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
-        
-        # Copiar la base de datos
-        shutil.copy2(db_path, temp_file.name)
-        
-        # Crear respuesta
+        # Crear respuesta con el archivo de volcado
         response = make_response(send_file(
             temp_file.name,
             as_attachment=True,
-            download_name=f'conservatorio_backup_completo_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db',
-            mimetype='application/octet-stream'
+            download_name=f'{db_name}_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.sql',
+            mimetype='application/sql'
         ))
-        
+
         # Limpiar archivo temporal después de enviar
         @response.call_on_close
         def cleanup():
@@ -66,10 +72,24 @@ def exportar_base_completa():
         return jsonify({'error': f'Error al exportar: {str(e)}'}), 500
 
 
+import subprocess
+import os
+
+def _procesar_importacion_sql(file_path):
+    """Procesar la importación de un archivo .sql usando el servicio de importación"""
+    try:
+        import_service = ImportService()
+        return import_service.import_sql_file(file_path)
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f"Error al procesar importación SQL: {str(e)}"
+        }
+
 @bp.route('/importar', methods=['POST'])
 @login_required
 def importar_base():
-    """Importar base de datos"""
+    """Importar base de datos desde archivo .db o .zip a MySQL"""
     try:
         if 'archivo' not in request.files:
             flash('No se seleccionó ningún archivo', 'error')
@@ -83,6 +103,9 @@ def importar_base():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             
+            # Mostrar el archivo y su extensión para depuración
+            print(f"Archivo recibido: {filename}, extensión: {filename.rsplit('.', 1)[1].lower()}")
+            
             # Crear directorio temporal si no existe
             os.makedirs(UPLOAD_FOLDER, exist_ok=True)
             
@@ -90,11 +113,11 @@ def importar_base():
             temp_path = os.path.join(UPLOAD_FOLDER, filename)
             file.save(temp_path)
             
-            # Validar y procesar archivo
-            if filename.endswith('.db'):
-                resultado = _procesar_importacion_db(temp_path)
-            elif filename.endswith('.zip'):
+            # Verificar la extensión y procesar el archivo adecuado
+            if filename.endswith('.zip'):
                 resultado = _procesar_importacion_zip(temp_path)
+            elif filename.endswith('.sql'):
+                resultado = _procesar_importacion_sql(temp_path)  # Si es SQL
             else:
                 resultado = {'success': False, 'message': 'Formato de archivo no soportado'}
             
@@ -104,6 +127,7 @@ def importar_base():
             except:
                 pass
             
+            # Mostrar resultado
             if resultado['success']:
                 flash(resultado['message'], 'success')
             else:
@@ -117,10 +141,22 @@ def importar_base():
         flash(f'Error al importar: {str(e)}', 'error')
         return redirect(url_for('migracion.index'))
 
+def _procesar_importacion_zip(file_path):
+    """Procesar la importación de un archivo .zip usando el servicio de importación"""
+    try:
+        import_service = ImportService()
+        return import_service.import_zip_file(file_path)
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f"Error al procesar archivo ZIP: {str(e)}"
+        }
+    
+
 @bp.route('/validar-archivo', methods=['POST'])
 @login_required
 def validar_archivo():
-    """Validar archivo antes de importar"""
+    """Validar archivo antes de importar a MySQL usando el servicio de importación"""
     try:
         if 'archivo' not in request.files:
             return jsonify({'valid': False, 'message': 'No se seleccionó archivo'})
@@ -130,234 +166,163 @@ def validar_archivo():
             return jsonify({'valid': False, 'message': 'No se seleccionó archivo'})
         
         if not allowed_file(file.filename):
-            return jsonify({'valid': False, 'message': 'Tipo de archivo no permitido'})
+            return jsonify({'valid': False, 'message': 'Tipo de archivo no permitido. Solo se permiten archivos .sql y .zip'})
         
-        # Validaciones adicionales según el tipo de archivo
         filename = secure_filename(file.filename)
         
-        if filename.endswith('.db'):
-            # Validar que sea una base de datos SQLite válida
-            temp_path = os.path.join(UPLOAD_FOLDER, 'temp_validation.db')
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-            file.save(temp_path)
-            
-            try:
-                conn = sqlite3.connect(temp_path)
-                cursor = conn.cursor()
-                
-                # Verificar que tenga las tablas esperadas
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-                tables = [row[0] for row in cursor.fetchall()]
-                
-                required_tables = ['tb_item', 'tb_articulo', 'tb_instrumento', 'tb_proveedores', 'tb_persona']
-                missing_tables = [table for table in required_tables if table not in tables]
-                
-                conn.close()
-                os.remove(temp_path)
-                
-                if missing_tables:
-                    return jsonify({
-                        'valid': False, 
-                        'message': f'Base de datos incompleta. Faltan tablas: {", ".join(missing_tables)}'
-                    })
-                
-                return jsonify({
-                    'valid': True, 
-                    'message': 'Archivo válido',
-                    'info': f'Base de datos con {len(tables)} tablas encontradas'
-                })
-                
-            except sqlite3.Error as e:
-                try:
-                    os.remove(temp_path)
-                except:
-                    pass
-                return jsonify({'valid': False, 'message': f'Archivo de base de datos corrupto: {str(e)}'})
+        # Validar tamaño del archivo (máximo 100MB)
+        file.seek(0, 2)
+        file_size = file.tell()
+        file.seek(0)
         
-        return jsonify({'valid': True, 'message': 'Archivo válido'})
+        max_size = 100 * 1024 * 1024  # 100MB
+        if file_size > max_size:
+            return jsonify({
+                'valid': False,
+                'message': f'El archivo es demasiado grande ({file_size / (1024*1024):.1f}MB). Máximo permitido: 100MB'
+            })
         
-    except Exception as e:
-        return jsonify({'valid': False, 'message': f'Error al validar: {str(e)}'})
-
-def _procesar_importacion_db(file_path):
-    """Procesar importación de archivo .db con sincronización completa"""
-    try:
-        import_conn = sqlite3.connect(file_path)
-        import_cursor = import_conn.cursor()
-
-        # Verificar estructura
-        import_cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = [row[0] for row in import_cursor.fetchall()]
-
-        required_tables = ['tb_item', 'tb_movimiento_detalle']
-        if not all(table in tables for table in required_tables):
-            import_conn.close()
-            return {'success': False, 'message': 'Estructura de base de datos incompatible'}
-
-        registros_importados = 0
-        registros_eliminados = 0
-        errores = []
-
-        def importar_tabla(nombre_tabla):
-            nonlocal registros_importados, registros_eliminados, errores
-
-            if nombre_tabla not in tables:
-                errores.append(f"Tabla {nombre_tabla} no encontrada en el archivo de importación")
-                return
-
-            try:
-                # Obtener información de columnas y clave primaria
-                import_cursor.execute(f"PRAGMA table_info({nombre_tabla})")
-                columns_info = import_cursor.fetchall()
-                column_names = [col[1] for col in columns_info]
-                primary_key = [col[1] for col in columns_info if col[5] == 1][0]
-
-                # 1. Obtener IDs de la base de datos importada
-                import_cursor.execute(f"SELECT {primary_key} FROM {nombre_tabla}")
-                ids_importados = {row[0] for row in import_cursor.fetchall()}
-
-                # 2. Obtener IDs de la base de datos actual
-                ids_actuales = {row[0] for row in 
-                               db.session.execute(text(f"SELECT {primary_key} FROM {nombre_tabla}")).fetchall()}
-
-                # 3. Identificar registros a eliminar
-                ids_a_eliminar = ids_actuales - ids_importados
-
-                # 4. Eliminar registros que no están en el archivo importado
-                if ids_a_eliminar:
-                    # Solución para el problema de la cláusula IN
-                    ids_list = list(ids_a_eliminar)
-                    if len(ids_list) == 1:
-                        # Caso especial para un solo elemento
-                        stmt = text(f"DELETE FROM {nombre_tabla} WHERE {primary_key} = :id")
-                        db.session.execute(stmt, {'id': ids_list[0]})
-                    else:
-                        # Generar placeholders dinámicos
-                        placeholders = ', '.join([f':id_{i}' for i in range(len(ids_list))])
-                        params = {f'id_{i}': id_val for i, id_val in enumerate(ids_list)}
-                        stmt = text(f"DELETE FROM {nombre_tabla} WHERE {primary_key} IN ({placeholders})")
-                        db.session.execute(stmt, params)
-                    
-                    registros_eliminados += len(ids_a_eliminar)
-
-                # 5. Importar/actualizar todos los registros del archivo importado
-                import_cursor.execute(f"SELECT * FROM {nombre_tabla}")
-                registros = import_cursor.fetchall()
-
-                for registro in registros:
-                    try:
-                        registro_dict = dict(zip(column_names, registro))
-                        
-                        # Verificar si el registro ya existe
-                        existing = db.session.execute(
-                            text(f"SELECT 1 FROM {nombre_tabla} WHERE {primary_key} = :pk_val"),
-                            {'pk_val': registro_dict[primary_key]}
-                        ).fetchone()
-
-                        if existing:
-                            # Actualizar registro existente
-                            set_clause = ', '.join([f"{col}=:{col}" for col in column_names])
-                            stmt = text(f"UPDATE {nombre_tabla} SET {set_clause} WHERE {primary_key}=:{primary_key}")
-                        else:
-                            # Insertar nuevo registro
-                            columns = ', '.join(column_names)
-                            placeholders = ', '.join([f':{col}' for col in column_names])
-                            stmt = text(f"INSERT INTO {nombre_tabla} ({columns}) VALUES ({placeholders})")
-
-                        db.session.execute(stmt, registro_dict)
-                        registros_importados += 1
-
-                    except Exception as e:
-                        errores.append(f"Error en {nombre_tabla} ID {registro[0]}: {str(e)}")
-                        continue
-
-                db.session.commit()
-
-            except Exception as e:
-                errores.append(f"Error procesando tabla {nombre_tabla}: {str(e)}")
-                db.session.rollback()
-
+        if file_size == 0:
+            return jsonify({'valid': False, 'message': 'El archivo está vacío'})
+        
+        # Guardar archivo temporalmente para validación
+        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        temp_path = os.path.join(UPLOAD_FOLDER, f"temp_validation_{filename}")
+        file.save(temp_path)
+        
         try:
-            db.session.rollback()
-            db.session.execute(text("PRAGMA foreign_keys=OFF"))
-
-            # Orden de importación considerando dependencias
-            tablas_orden = [
-                'tb_proveedores',
-                'tb_persona',
-                'tb_item',
-                'tb_articulo',
-                'tb_instrumento',
-                'tb_entrada',
-                'tb_consumo',
-                'tb_movimiento_detalle',
-                'tb_stock'
-            ]
-
-            for tabla in tablas_orden:
-                importar_tabla(tabla)
-
-            db.session.execute(text("PRAGMA foreign_keys=ON"))
-            db.session.commit()
-
-            mensaje = (f"Sincronización completada. "
-                      f"Registros importados/actualizados: {registros_importados}, "
-                      f"Registros eliminados: {registros_eliminados}")
+            import_service = ImportService()
             
-            if errores:
-                mensaje += f" | Errores: {len(errores)}"
-                if len(errores) <= 5:
-                    mensaje += f" ({'; '.join(errores[:5])})"
-
-            return {
-                'success': len(errores) == 0 or registros_importados > 0,
-                'message': mensaje,
-                'imported': registros_importados,
-                'deleted': registros_eliminados,
-                'errors': len(errores)
-            }
-
-        except Exception as e:
-            db.session.rollback()
-            return {
-                'success': False,
-                'message': f'Error durante la sincronización: {str(e)}'
-            }
-
-        finally:
-            import_conn.close()
-
-    except Exception as e:
-        return {
-            'success': False,
-            'message': f'Error al procesar archivo: {str(e)}'
-        }
-    
-def _procesar_importacion_zip(file_path):
-    """Procesar importación de archivo .zip"""
-    try:
-        with zipfile.ZipFile(file_path, 'r') as zip_ref:
-            # Listar archivos en el ZIP
-            files = zip_ref.namelist()
-            db_files = [f for f in files if f.endswith('.db')]
-            
-            if not db_files:
-                return {'success': False, 'message': 'No se encontraron archivos de base de datos en el ZIP'}
-            
-            # Extraer y procesar el primer archivo .db encontrado
-            db_file = db_files[0]
-            with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_db:
-                temp_db.write(zip_ref.read(db_file))
-                temp_db.flush()
+            if filename.endswith('.sql'):
+                # Validar archivo SQL directamente
+                validation = import_service.validate_sql_file(temp_path)
                 
-                resultado = _procesar_importacion_db(temp_db.name)
-                
+                if validation['valid']:
+                    return jsonify({
+                        'valid': True,
+                        'message': 'Archivo SQL válido',
+                        'info': f'Tamaño: {file_size / (1024*1024):.2f}MB - Dump de MySQL detectado'
+                    })
+                else:
+                    return jsonify({
+                        'valid': False,
+                        'message': validation['message']
+                    })
+                    
+            elif filename.endswith('.zip'):
+                # Validar archivo ZIP
                 try:
-                    os.unlink(temp_db.name)
-                except:
-                    pass
-                
-                return resultado
-                
+                    if not zipfile.is_zipfile(temp_path):
+                        return jsonify({'valid': False, 'message': 'El archivo ZIP está corrupto'})
+                    
+                    with zipfile.ZipFile(temp_path, 'r') as zip_ref:
+                        file_list = zip_ref.namelist()
+                        sql_files = [f for f in file_list if f.endswith('.sql')]
+                        
+                        if not sql_files:
+                            return jsonify({
+                                'valid': False,
+                                'message': 'El archivo ZIP no contiene archivos .sql'
+                            })
+                        
+                        # Extraer y validar el primer archivo SQL
+                        with tempfile.TemporaryDirectory() as temp_dir:
+                            zip_ref.extractall(temp_dir)
+                            sql_file_path = os.path.join(temp_dir, sql_files[0])
+                            
+                            validation = import_service.validate_sql_file(sql_file_path)
+                            
+                            if validation['valid']:
+                                return jsonify({
+                                    'valid': True,
+                                    'message': 'Archivo ZIP válido',
+                                    'info': f'Tamaño: {file_size / (1024*1024):.2f}MB - Contiene {len(sql_files)} archivo(s) SQL válido(s)'
+                                })
+                            else:
+                                return jsonify({
+                                    'valid': False,
+                                    'message': f'El archivo SQL dentro del ZIP no es válido: {validation["message"]}'
+                                })
+                                
+                except zipfile.BadZipFile:
+                    return jsonify({'valid': False, 'message': 'El archivo ZIP está corrupto'})
+                except Exception as e:
+                    return jsonify({'valid': False, 'message': f'Error al validar ZIP: {str(e)}'})
+            
+            return jsonify({'valid': True, 'message': 'Archivo válido'})
+            
+        finally:
+            # Limpiar archivo temporal
+            try:
+                os.remove(temp_path)
+            except:
+                pass
+        
     except Exception as e:
-        return {'success': False, 'message': f'Error al procesar ZIP: {str(e)}'}
+        return jsonify({'valid': False, 'message': f'Error al validar archivo: {str(e)}'})
+
+
+
+@bp.route('/estado-bd', methods=['GET'])
+@login_required
+def estado_base_datos():
+    """Obtener estado actual de la base de datos"""
+    try:
+        import_service = ImportService()
+        status = import_service.get_import_status()
+        return jsonify(status)
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error obteniendo estado: {str(e)}'
+        }), 500
+
+@bp.route('/test-conexion', methods=['GET'])
+@login_required
+def test_conexion_bd():
+    """Probar conexión con la base de datos MySQL"""
+    try:
+        import_service = ImportService()
+        db_config = import_service.get_db_config()
+        
+        # Comando simple para probar conexión
+        test_command = [
+            'mysql',
+            f'-h{db_config["host"]}',
+            f'-P{db_config["port"]}',
+            f'-u{db_config["user"]}',
+            f'-p{db_config["password"]}',
+            '-e', 'SELECT 1;',
+            db_config['database']
+        ]
+        
+        result = subprocess.run(
+            test_command,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Conexión exitosa con la base de datos',
+                'database': db_config['database'],
+                'host': db_config['host']
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Error de conexión: {result.stderr}'
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'message': 'Timeout al conectar con la base de datos'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error probando conexión: {str(e)}'
+        }), 500

@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const cantidadInput = document.getElementById('cantidad');
     const valorUnitarioInput = document.getElementById('valor_unitario');
     const form = document.getElementById('salidaForm');
-    const stockDisponible = {{ instrumento.item.i_cantidad if instrumento.item else 0 }};
+    const stockDisponible = {{ instrumento.item.i_cantidad if instrumento.item else 0 | tojson }};
     
     function calcularTotal() {
         const cantidad = parseFloat(cantidadInput.value) || 0;
