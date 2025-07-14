@@ -93,7 +93,7 @@ CarDesk/
 
 ## 📝 Licencia
 
-MIT License - ver archivo LICENSE para detalles.
+UPS License - ver archivo LICENSE para detalles.
 
 ## 👥 Contribuir
 
