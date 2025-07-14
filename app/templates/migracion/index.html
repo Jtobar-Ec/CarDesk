@@ -209,8 +209,11 @@
 <script>
 let selectedFile = null;
 
+console.log("Script cargado correctamente.");
+
 // Funciones de exportación
 function exportarCompleta() {
+    console.log("Iniciando exportación...");
     showLoading('Exportando Base de Datos', 'Creando copia de seguridad completa...');
     
     // Crear un formulario para la descarga
@@ -230,10 +233,10 @@ function exportarCompleta() {
     }, 1500);
 }
 
-
 // Funciones de importación
 function setupDropZone() {
     const dropZone = document.getElementById('dropZone');
+    console.log("Configurando la zona de arrastre (drop zone).");
     
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -251,6 +254,7 @@ function setupDropZone() {
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
+            console.log("Archivo arrastrado:", files[0]);
             handleFileSelect(files[0]);
         }
     });
@@ -261,6 +265,7 @@ function setupDropZone() {
 }
 
 function handleFileSelect(file) {
+    console.log("Archivo seleccionado:", file);
     if (!file) return;
     
     selectedFile = file;
@@ -275,6 +280,7 @@ function handleFileSelect(file) {
 }
 
 function validateFile(file) {
+    console.log("Validando archivo...");
     const validationDiv = document.getElementById('validationResult');
     const btnImportar = document.getElementById('btnImportar');
     
@@ -290,6 +296,7 @@ function validateFile(file) {
     })
     .then(response => response.json())
     .then(data => {
+        console.log("Resultado de validación:", data);
         if (data.valid) {
             validationDiv.innerHTML = `
                 <div class="alert alert-success">
@@ -310,6 +317,7 @@ function validateFile(file) {
         }
     })
     .catch(error => {
+        console.log("Error al validar archivo:", error);
         validationDiv.innerHTML = `
             <div class="alert alert-danger">
                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -321,6 +329,7 @@ function validateFile(file) {
 }
 
 function confirmarImportacion() {
+    console.log("Confirmando importación...");
     if (!selectedFile) {
         showAlert('No hay archivo seleccionado', 'warning');
         return;
@@ -335,7 +344,10 @@ function confirmarImportacion() {
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(selectedFile);
         fileInput.files = dataTransfer.files;
-        
+
+        const importCommand = '{{ url_for("migracion.importar_base") }}';
+        console.log(`Ejecutando comando de importación: ${importCommand}`);
+
         // Enviar el formulario
         document.getElementById('formImportar').submit();
     }
@@ -357,6 +369,7 @@ function formatFileSize(bytes) {
 }
 
 function showLoading(title, subtitle) {
+    console.log("Mostrando modal de carga...");
     document.getElementById('loadingText').textContent = title;
     document.getElementById('loadingSubtext').textContent = subtitle;
     new bootstrap.Modal(document.getElementById('loadingModal')).show();
@@ -368,6 +381,7 @@ function hideLoading() {
 }
 
 function showAlert(message, type) {
+    console.log("Mostrando alerta:", message);
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
@@ -391,6 +405,7 @@ function showAlert(message, type) {
 
 // Funciones de estado de base de datos
 function loadDatabaseStatus() {
+    console.log("Cargando estado de la base de datos...");
     const statusDiv = document.getElementById('dbStatus');
     
     statusDiv.innerHTML = `
@@ -405,6 +420,7 @@ function loadDatabaseStatus() {
     fetch('{{ url_for("migracion.estado_base_datos") }}')
         .then(response => response.json())
         .then(data => {
+            console.log("Estado de la base de datos:", data);
             if (data.success) {
                 statusDiv.innerHTML = `
                     <div class="row">
@@ -480,6 +496,7 @@ function loadDatabaseStatus() {
 }
 
 function testDatabaseConnection() {
+    console.log("Probando la conexión con la base de datos...");
     const statusDiv = document.getElementById('dbStatus');
     
     statusDiv.innerHTML = `
@@ -494,6 +511,7 @@ function testDatabaseConnection() {
     fetch('{{ url_for("migracion.test_conexion_bd") }}')
         .then(response => response.json())
         .then(data => {
+            console.log("Resultado de prueba de conexión:", data);
             if (data.success) {
                 statusDiv.innerHTML = `
                     <div class="alert alert-success mb-0">
@@ -529,7 +547,7 @@ function testDatabaseConnection() {
         })
         .catch(error => {
             statusDiv.innerHTML = `
-                <div class="alert alert-danger mb-0">
+                <div class=")alert alert-danger mb-0">
                     <div class="d-flex align-items-center">
                         <i class="fas fa-times-circle me-2"></i>
                         <div>
