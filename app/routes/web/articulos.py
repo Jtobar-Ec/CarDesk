@@ -416,7 +416,7 @@ def nuevo_articulo():
                 # Usar transacción para asegurar consistencia
                 for articulo_data in articulos_data:
                     try:
-                        # Crear el artículo
+                        # Crear el artículo (ya incluye el stock inicial)
                         articulo, item = articulo_service.crear_articulo(
                             nombre=articulo_data['nombre'],
                             cantidad=articulo_data['cantidad'],
@@ -429,25 +429,32 @@ def nuevo_articulo():
                             codigo_identificacion=articulo_data.get('codigo_identificacion')
                         )
                         
+                        # CORRECCIÓN: No registrar entrada adicional
+                        # El artículo ya se crea con el stock inicial correcto
+                        # Solo registrar el movimiento de entrada inicial para auditoría
+                        from app.database.models import MovimientoDetalle
+                        from datetime import datetime
+                        
                         # Preparar observaciones con información de donación
                         if es_donacion:
-                            observaciones_entrada = f"Entrada inicial - DONACIÓN - {articulo_data['cuenta_contable']}"
-                        else:
-                            observaciones_entrada = f"Entrada inicial - Factura: {numero_factura} - {articulo_data['cuenta_contable']}"
-                        if es_donacion:
-                            observaciones_entrada += f" [DONACIÓN]"
+                            observaciones_entrada = f"Stock inicial - DONACIÓN - {articulo_data['cuenta_contable']}"
                             if observaciones_donacion:
                                 observaciones_entrada += f" - {observaciones_donacion}"
+                        else:
+                            observaciones_entrada = f"Stock inicial - Factura: {numero_factura} - {articulo_data['cuenta_contable']}"
                         
-                        # Registrar la entrada inicial con el proveedor
-                        articulo_service.registrar_entrada(
-                            item.id,
-                            articulo_data['cantidad'],
-                            articulo_data['valor_unitario'],
-                            current_user.id,
-                            proveedor_id=proveedor_id,
-                            observaciones=observaciones_entrada
+                        # Registrar movimiento de entrada inicial para auditoría (sin duplicar stock)
+                        movimiento = MovimientoDetalle(
+                            m_fecha=datetime.now().date(),
+                            m_tipo='entrada',
+                            m_cantidad=articulo_data['cantidad'],
+                            m_valorUnitario=articulo_data['valor_unitario'],
+                            m_valorTotal=articulo_data['cantidad'] * articulo_data['valor_unitario'],
+                            m_observaciones=observaciones_entrada,
+                            i_id=item.id,
+                            u_id=current_user.id
                         )
+                        db.session.add(movimiento)
                         
                         articulos_creados += 1
                         
