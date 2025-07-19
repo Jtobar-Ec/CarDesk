@@ -134,21 +134,9 @@ class ArticuloService:
         
         articulo, item = self.repo.create_with_item(item_data, articulo_data)
         
-        # Si hay cantidad inicial, registrar movimiento de entrada inicial
-        if cantidad > 0:
-            from app.database.models import MovimientoDetalle
-            movimiento = MovimientoDetalle(
-                m_fecha=datetime.now().date(),
-                m_tipo='entrada',
-                m_cantidad=cantidad,
-                m_valorUnitario=valor_unitario,
-                m_valorTotal=cantidad * valor_unitario,
-                m_observaciones=f'Stock inicial del artículo {codigo}',
-                i_id=item.id,
-                u_id=usuario_id
-            )
-            db.session.add(movimiento)
-            db.session.commit()
+        # CORRECCIÓN: No registrar movimiento inicial automáticamente
+        # El stock inicial ya está establecido en el Item
+        # El movimiento de entrada se registrará por separado en la ruta
         
         return articulo, item
 
