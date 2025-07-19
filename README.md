@@ -45,7 +45,18 @@ GRANT ALL PRIVILEGES ON sistema_inventario.* TO 'flaskuser'@'localhost';
 FLUSH PRIVILEGES;
 ```
 
-5. **Configurar variables de entorno**
+5. **Permisos adicionales para migración** (Requerido para funcionalidad de migración)
+```bash
+sudo mysql -u root
+```
+```sql
+GRANT PROCESS, SELECT, SHOW VIEW, RELOAD ON *.* TO 'flaskuser'@'localhost';
+FLUSH PRIVILEGES;
+GRANT EXECUTE ON *.* TO 'flaskuser'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+6. **Configurar variables de entorno**
 Editar `.env`:
 ```env
 SECRET_KEY=tu-clave-secreta-aqui
@@ -56,7 +67,7 @@ MYSQL_PORT=3306
 MYSQL_DATABASE=sistema_inventario
 ```
 
-6. **Crear tablas**
+7. **Crear tablas**
 ```bash
 python -c "from app import create_app; from app.database import db; app = create_app(); app.app_context().push(); db.create_all()"
 ```
