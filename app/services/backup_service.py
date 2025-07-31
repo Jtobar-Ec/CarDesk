@@ -1,11 +1,14 @@
 import os
 import json
-import sqlite3
+import subprocess
 import zipfile
 import logging
+import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 import shutil
+import mysql.connector
+from mysql.connector import Error
 from app.database import db
 from app.database.models import Persona, Item, Articulo, Instrumento, Proveedor, MovimientoDetalle, Consumo, Entrada, Usuario
 from .google_drive_service import GoogleDriveService
@@ -17,6 +20,37 @@ class BackupService:
         self.logger = logging.getLogger(__name__)
         self.load_config()
         self.drive_service = GoogleDriveService()
+        # Configuración de MySQL
+        self.db_config = self._get_db_config()
+    
+    def _get_db_config(self):
+        """Obtener configuración de la base de datos desde las variables de entorno"""
+        return {
+            'host': os.getenv('DB_HOST', 'localhost'),
+            'port': int(os.getenv('DB_PORT', 3306)),
+            'user': os.getenv('DB_USER', 'flaskuser'),
+            'password': os.getenv('DB_PASSWORD', 'flaskpass'),
+            'database': os.getenv('DB_NAME', 'sistema_inventario')
+        }
+    
+    def _test_db_connection(self):
+        """Probar conexión a la base de datos MySQL"""
+        try:
+            connection = mysql.connector.connect(**self.db_config)
+            if connection.is_connected():
+                cursor = connection.cursor()
+                cursor.execute("SELECT VERSION()")
+                version = cursor.fetchone()
+                cursor.close()
+                connection.close()
+                self.logger.debug(f"Conexión exitosa - MySQL {version[0]}")
+                return True, f"Conexión exitosa - MySQL {version[0]}"
+        except Error as e:
+            self.logger.error(f"Error de conexión MySQL: {str(e)}")
+            return False, f"Error de conexión MySQL: {str(e)}"
+        except Exception as e:
+            self.logger.error(f"Error inesperado: {str(e)}")
+            return False, f"Error inesperado: {str(e)}"
     
     def load_config(self):
         """Carga configuración de directorios"""
@@ -162,7 +196,7 @@ class BackupService:
             return {"success": False, "error": str(e)}
 
     def create_backup(self, backup_type="local"):
-        """Crea un backup completo del sistema"""
+        """Crea un backup completo del sistema usando MySQL"""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"kardex_backup_{backup_type}_{timestamp}"
         
@@ -172,13 +206,27 @@ class BackupService:
             backup_path = self.cloud_backup_dir / f"{backup_name}.zip"
         
         try:
+            # Verificar conexión a la base de datos
+            is_connected, message = self._test_db_connection()
+            if not is_connected:
+                return {"success": False, "error": f"Error de conexión a MySQL: {message}"}
+            
+            # Crear directorio temporal
+            temp_dir = tempfile.mkdtemp()
+            sql_filename = f'{self.db_config["database"]}_backup_{timestamp}.sql'
+            temp_sql_path = os.path.join(temp_dir, sql_filename)
+            
+            # Crear backup de MySQL usando mysqldump
+            mysqldump_result = self._create_mysql_dump(temp_sql_path)
+            if not mysqldump_result["success"]:
+                shutil.rmtree(temp_dir)
+                return mysqldump_result
+            
             with zipfile.ZipFile(backup_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # 1. Backup de la base de datos (ruta multiplataforma)
-                db_path = Path("instance") / "conservatorio.db"
-                if db_path.exists():
-                    zipf.write(str(db_path), "database/conservatorio.db")
+                # 1. Backup de la base de datos MySQL
+                zipf.write(temp_sql_path, f"database/{sql_filename}")
                 
-                # 2. Backup de datos en JSON
+                # 2. Backup de datos en JSON (para compatibilidad)
                 data_backup = self._export_data_to_json()
                 zipf.writestr("data/backup_data.json", json.dumps(data_backup, indent=2, default=str))
                 
@@ -186,10 +234,15 @@ class BackupService:
                 backup_info = {
                     "created_at": datetime.now().isoformat(),
                     "backup_type": backup_type,
-                    "version": "1.0",
+                    "version": "2.0",
+                    "database_type": "mysql",
+                    "database_name": self.db_config["database"],
                     "tables_included": ["personal", "articulos", "instrumentos", "proveedores", "movimientos", "consumos"]
                 }
                 zipf.writestr("backup_info.json", json.dumps(backup_info, indent=2))
+            
+            # Limpiar archivos temporales
+            shutil.rmtree(temp_dir)
             
             result = {
                 "success": True,
@@ -206,6 +259,54 @@ class BackupService:
             return result
         except Exception as e:
             return {"success": False, "error": str(e)}
+    
+    def _create_mysql_dump(self, output_path):
+        """Crear dump de MySQL usando mysqldump"""
+        try:
+            # Construir comando mysqldump
+            mysqldump_command = [
+                'mysqldump',
+                f'-h{self.db_config["host"]}',
+                f'-P{self.db_config["port"]}',
+                f'-u{self.db_config["user"]}',
+                f'-p{self.db_config["password"]}',
+                '--routines',
+                '--triggers',
+                '--single-transaction',
+                '--quick',
+                '--lock-tables=false',
+                self.db_config['database']
+            ]
+            
+            self.logger.debug(f"Ejecutando mysqldump: {' '.join(mysqldump_command)}")
+            
+            # Ejecutar mysqldump
+            with open(output_path, 'w') as output_file:
+                result = subprocess.run(
+                    mysqldump_command,
+                    stdout=output_file,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=300  # 5 minutos timeout
+                )
+            
+            if result.returncode != 0:
+                self.logger.error(f"Error en mysqldump: {result.stderr}")
+                return {"success": False, "error": f"Error en mysqldump: {result.stderr}"}
+            
+            # Verificar que el archivo se creó correctamente
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                self.logger.error("El archivo de backup MySQL está vacío o no se pudo crear")
+                return {"success": False, "error": "El archivo de backup MySQL está vacío o no se pudo crear"}
+            
+            return {"success": True, "sql_file": output_path}
+            
+        except subprocess.TimeoutExpired:
+            self.logger.error("Timeout en mysqldump")
+            return {"success": False, "error": "Timeout en mysqldump - la operación tardó demasiado"}
+        except Exception as e:
+            self.logger.error(f"Error ejecutando mysqldump: {str(e)}")
+            return {"success": False, "error": f"Error ejecutando mysqldump: {str(e)}"}
 
     def _export_data_to_json(self):
         """Exporta todos los datos importantes a JSON"""
@@ -371,7 +472,7 @@ class BackupService:
         }
 
     def restore_backup(self, backup_path):
-        """Restaura un backup (multiplataforma) con validaciones mejoradas"""
+        """Restaura un backup MySQL con validaciones mejoradas"""
         try:
             # Manejar backups de Google Drive
             if backup_path.startswith("drive://"):
@@ -393,52 +494,57 @@ class BackupService:
             # Validar contenido del backup antes de proceder
             with zipfile.ZipFile(backup_path, 'r') as zipf:
                 files_in_backup = zipf.namelist()
-                if "database/conservatorio.db" not in files_in_backup:
-                    return {"success": False, "error": "El backup no contiene la base de datos"}
+                sql_files = [f for f in files_in_backup if f.startswith("database/") and f.endswith(".sql")]
+                
+                if not sql_files:
+                    # Verificar si es un backup antiguo de SQLite
+                    if "database/conservatorio.db" in files_in_backup:
+                        return {"success": False, "error": "Este backup es de SQLite y no es compatible con MySQL. Use la migración para convertir datos."}
+                    return {"success": False, "error": "El backup no contiene archivos SQL de MySQL"}
             
-            # Crear directorio temporal multiplataforma
-            temp_dir = Path("temp_restore")
-            instance_dir = Path("instance")
-            instance_dir.mkdir(exist_ok=True)
+            # Verificar conexión a MySQL
+            is_connected, message = self._test_db_connection()
+            if not is_connected:
+                return {"success": False, "error": f"Error de conexión a MySQL: {message}"}
             
-            # Limpiar directorio temporal si existe
-            if temp_dir.exists():
-                shutil.rmtree(temp_dir, ignore_errors=True)
-            
-            # Crear backup de seguridad de la BD actual (más eficiente)
-            db_target = instance_dir / "conservatorio.db"
+            # Crear backup de seguridad de la BD actual
             safety_backup_created = False
-            if db_target.exists():
-                try:
-                    backup_current = db_target.with_suffix('.db.backup')
-                    shutil.copy2(str(db_target), str(backup_current))
-                    safety_backup_created = True
-                except Exception as e:
-                    # Continuar sin backup de seguridad si falla
-                    print(f"Advertencia: No se pudo crear backup de seguridad: {e}")
+            try:
+                safety_result = self._create_safety_backup()
+                safety_backup_created = safety_result.get("success", False)
+            except Exception as e:
+                self.logger.warning(f"No se pudo crear backup de seguridad: {e}")
             
-            with zipfile.ZipFile(backup_path, 'r') as zipf:
-                # Extraer base de datos
-                zipf.extract("database/conservatorio.db", temp_dir)
-                db_source = temp_dir / "database" / "conservatorio.db"
+            # Crear directorio temporal
+            temp_dir = tempfile.mkdtemp()
+            
+            try:
+                with zipfile.ZipFile(backup_path, 'r') as zipf:
+                    # Extraer archivo SQL
+                    sql_file = sql_files[0]  # Tomar el primer archivo SQL encontrado
+                    zipf.extract(sql_file, temp_dir)
+                    sql_path = os.path.join(temp_dir, sql_file)
+                    
+                    # Verificar que el archivo extraído existe y tiene contenido
+                    if not os.path.exists(sql_path) or os.path.getsize(sql_path) == 0:
+                        return {"success": False, "error": "El archivo SQL en el backup está corrupto"}
+                    
+                    # Restaurar base de datos MySQL
+                    restore_result = self._restore_mysql_dump(sql_path)
+                    if not restore_result["success"]:
+                        return restore_result
                 
-                # Verificar que el archivo extraído existe y tiene contenido
-                if not db_source.exists() or db_source.stat().st_size == 0:
-                    return {"success": False, "error": "La base de datos en el backup está corrupta"}
+                return {
+                    "success": True,
+                    "safety_backup_created": safety_backup_created,
+                    "message": "Backup MySQL restaurado exitosamente",
+                    "restored_from": str(backup_path)
+                }
                 
-                # Restaurar base de datos
-                shutil.move(str(db_source), str(db_target))
-                
+            finally:
                 # Limpiar directorio temporal
-                if temp_dir.exists():
+                if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir, ignore_errors=True)
-            
-            return {
-                "success": True,
-                "safety_backup_created": safety_backup_created,
-                "message": "Backup restaurado exitosamente",
-                "restored_from": str(backup_path)
-            }
             
         except zipfile.BadZipFile:
             return {"success": False, "error": "El archivo de backup está corrupto"}
@@ -446,6 +552,54 @@ class BackupService:
             return {"success": False, "error": "Sin permisos para acceder al archivo de backup"}
         except Exception as e:
             return {"success": False, "error": f"Error durante la restauración: {str(e)}"}
+    
+    def _create_safety_backup(self):
+        """Crear backup de seguridad antes de restaurar"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safety_backup_name = f"safety_backup_{timestamp}"
+            return self.create_backup("local")
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _restore_mysql_dump(self, sql_file_path):
+        """Restaurar base de datos MySQL desde archivo SQL"""
+        try:
+            # Construir comando mysql para importar
+            mysql_command = [
+                'mysql',
+                f'-h{self.db_config["host"]}',
+                f'-P{self.db_config["port"]}',
+                f'-u{self.db_config["user"]}',
+                f'-p{self.db_config["password"]}',
+                self.db_config['database']
+            ]
+            
+            self.logger.debug(f"Ejecutando mysql import: {' '.join(mysql_command)}")
+            
+            # Ejecutar comando mysql
+            with open(sql_file_path, 'r') as input_file:
+                result = subprocess.run(
+                    mysql_command,
+                    stdin=input_file,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    timeout=600  # 10 minutos timeout
+                )
+            
+            if result.returncode != 0:
+                self.logger.error(f"Error en mysql import: {result.stderr}")
+                return {"success": False, "error": f"Error en mysql import: {result.stderr}"}
+            
+            return {"success": True, "message": "Base de datos MySQL restaurada exitosamente"}
+            
+        except subprocess.TimeoutExpired:
+            self.logger.error("Timeout en mysql import")
+            return {"success": False, "error": "Timeout en mysql import - la operación tardó demasiado"}
+        except Exception as e:
+            self.logger.error(f"Error ejecutando mysql import: {str(e)}")
+            return {"success": False, "error": f"Error ejecutando mysql import: {str(e)}"}
     
     def _restore_from_drive(self, drive_path):
         """Restaura un backup desde Google Drive"""

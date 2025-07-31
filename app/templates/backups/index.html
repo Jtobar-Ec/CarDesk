@@ -105,6 +105,11 @@
                                         {{ next_backups.next_monthly[:16].replace('T', ' ') if next_backups.next_monthly else 'No programado' }}
                                     </small>
                                 </div>
+                                <div class="mt-2">
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="showScheduleConfig()">
+                                        <i class="fas fa-clock"></i> Configurar Horarios
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -340,6 +345,142 @@
                         <i class="fas fa-undo"></i> Restaurar
                     </button>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para configurar horarios de backups -->
+<div class="modal fade" id="scheduleConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-clock"></i> Configurar Horarios de Backups
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <!-- Backup Semanal -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-calendar-week"></i> Backup Semanal
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="weeklyEnabled">
+                                    <label class="form-check-label" for="weeklyEnabled">
+                                        Habilitar backup semanal automático
+                                    </label>
+                                </div>
+                                <div id="weeklyConfig">
+                                    <div class="mb-3">
+                                        <label for="weeklyDay" class="form-label">Día de la semana</label>
+                                        <select class="form-select" id="weeklyDay">
+                                            <option value="0">Lunes</option>
+                                            <option value="1">Martes</option>
+                                            <option value="2">Miércoles</option>
+                                            <option value="3">Jueves</option>
+                                            <option value="4">Viernes</option>
+                                            <option value="5">Sábado</option>
+                                            <option value="6">Domingo</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label for="weeklyHour" class="form-label">Hora</label>
+                                            <select class="form-select" id="weeklyHour">
+                                                {% for hour in range(24) %}
+                                                <option value="{{ hour }}">{{ '%02d'|format(hour) }}:00</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label for="weeklyMinute" class="form-label">Minuto</label>
+                                            <select class="form-select" id="weeklyMinute">
+                                                <option value="0">00</option>
+                                                <option value="15">15</option>
+                                                <option value="30">30</option>
+                                                <option value="45">45</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Backup Mensual -->
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-cloud"></i> Backup Mensual
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="monthlyEnabled">
+                                    <label class="form-check-label" for="monthlyEnabled">
+                                        Habilitar backup mensual automático
+                                    </label>
+                                </div>
+                                <div id="monthlyConfig">
+                                    <div class="mb-3">
+                                        <label for="monthlyDay" class="form-label">Día de la semana (primer del mes)</label>
+                                        <select class="form-select" id="monthlyDay">
+                                            <option value="0">Lunes</option>
+                                            <option value="1">Martes</option>
+                                            <option value="2">Miércoles</option>
+                                            <option value="3">Jueves</option>
+                                            <option value="4">Viernes</option>
+                                            <option value="5">Sábado</option>
+                                            <option value="6">Domingo</option>
+                                        </select>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <label for="monthlyHour" class="form-label">Hora</label>
+                                            <select class="form-select" id="monthlyHour">
+                                                {% for hour in range(24) %}
+                                                <option value="{{ hour }}">{{ '%02d'|format(hour) }}:00</option>
+                                                {% endfor %}
+                                            </select>
+                                        </div>
+                                        <div class="col-6">
+                                            <label for="monthlyMinute" class="form-label">Minuto</label>
+                                            <select class="form-select" id="monthlyMinute">
+                                                <option value="0">00</option>
+                                                <option value="15">15</option>
+                                                <option value="30">30</option>
+                                                <option value="45">45</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <h6><i class="fas fa-info-circle"></i> Información</h6>
+                    <ul class="mb-0">
+                        <li><strong>Backup Semanal:</strong> Se guarda localmente en el servidor</li>
+                        <li><strong>Backup Mensual:</strong> Se guarda localmente y se sube a Google Drive (si está configurado)</li>
+                        <li>Los cambios se aplicarán inmediatamente al scheduler activo</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" onclick="saveScheduleConfig()">
+                    <i class="fas fa-save"></i> Guardar Configuración
+                </button>
             </div>
         </div>
     </div>
@@ -666,6 +807,125 @@ function showGlobalAlert(message, type) {
         }
     }, 5000);
 }
+
+// Funciones para configuración de horarios
+async function showScheduleConfig() {
+    try {
+        // Cargar configuración actual
+        const response = await fetch('{{ url_for("backups.get_schedule_config") }}');
+        const result = await response.json();
+        
+        if (result.success) {
+            const config = result.config;
+            
+            // Configurar valores del formulario
+            // Backup semanal
+            document.getElementById('weeklyEnabled').checked = config.weekly.enabled;
+            document.getElementById('weeklyDay').value = config.weekly.day;
+            document.getElementById('weeklyHour').value = config.weekly.hour;
+            document.getElementById('weeklyMinute').value = config.weekly.minute;
+            
+            // Backup mensual
+            document.getElementById('monthlyEnabled').checked = config.monthly.enabled;
+            document.getElementById('monthlyDay').value = config.monthly.day;
+            document.getElementById('monthlyHour').value = config.monthly.hour;
+            document.getElementById('monthlyMinute').value = config.monthly.minute;
+            
+            // Habilitar/deshabilitar controles según estado
+            toggleScheduleControls();
+        }
+        
+        // Mostrar modal
+        new bootstrap.Modal(document.getElementById('scheduleConfigModal')).show();
+    } catch (error) {
+        showGlobalAlert('Error al cargar configuración de horarios: ' + error.message, 'danger');
+    }
+}
+
+function toggleScheduleControls() {
+    const weeklyEnabled = document.getElementById('weeklyEnabled').checked;
+    const monthlyEnabled = document.getElementById('monthlyEnabled').checked;
+    
+    document.getElementById('weeklyConfig').style.opacity = weeklyEnabled ? '1' : '0.5';
+    document.getElementById('monthlyConfig').style.opacity = monthlyEnabled ? '1' : '0.5';
+    
+    // Deshabilitar controles si no están habilitados
+    const weeklyControls = document.querySelectorAll('#weeklyConfig select');
+    const monthlyControls = document.querySelectorAll('#monthlyConfig select');
+    
+    weeklyControls.forEach(control => control.disabled = !weeklyEnabled);
+    monthlyControls.forEach(control => control.disabled = !monthlyEnabled);
+}
+
+async function saveScheduleConfig() {
+    try {
+        const weeklyConfig = {
+            enabled: document.getElementById('weeklyEnabled').checked,
+            day: parseInt(document.getElementById('weeklyDay').value),
+            hour: parseInt(document.getElementById('weeklyHour').value),
+            minute: parseInt(document.getElementById('weeklyMinute').value)
+        };
+        
+        const monthlyConfig = {
+            enabled: document.getElementById('monthlyEnabled').checked,
+            day: parseInt(document.getElementById('monthlyDay').value),
+            hour: parseInt(document.getElementById('monthlyHour').value),
+            minute: parseInt(document.getElementById('monthlyMinute').value)
+        };
+        
+        // Guardar configuración semanal
+        const weeklyResponse = await fetch('{{ url_for("backups.update_schedule_config") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                backup_type: 'weekly',
+                config: weeklyConfig
+            })
+        });
+        
+        const weeklyResult = await weeklyResponse.json();
+        if (!weeklyResult.success) {
+            throw new Error('Error guardando configuración semanal: ' + weeklyResult.error);
+        }
+        
+        // Guardar configuración mensual
+        const monthlyResponse = await fetch('{{ url_for("backups.update_schedule_config") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                backup_type: 'monthly',
+                config: monthlyConfig
+            })
+        });
+        
+        const monthlyResult = await monthlyResponse.json();
+        if (!monthlyResult.success) {
+            throw new Error('Error guardando configuración mensual: ' + monthlyResult.error);
+        }
+        
+        showGlobalAlert('Configuración de horarios guardada exitosamente', 'success');
+        
+        // Cerrar modal y recargar página
+        bootstrap.Modal.getInstance(document.getElementById('scheduleConfigModal')).hide();
+        setTimeout(() => location.reload(), 1500);
+        
+    } catch (error) {
+        showGlobalAlert('Error al guardar configuración: ' + error.message, 'danger');
+    }
+}
+
+// Event listeners adicionales para configuración de horarios
+document.addEventListener('DOMContentLoaded', function() {
+    // Toggle para habilitar/deshabilitar controles (agregar a los existentes)
+    if (document.getElementById('weeklyEnabled')) {
+        document.getElementById('weeklyEnabled').addEventListener('change', toggleScheduleControls);
+        document.getElementById('monthlyEnabled').addEventListener('change', toggleScheduleControls);
+    }
+});
 
 // Auto-refresh cada 30 segundos
 setInterval(() => {

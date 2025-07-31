@@ -1,0 +1,19 @@
+{
+  "weekly": {
+    "enabled": true,
+    "day": 6,
+    "hour": 2,
+    "minute": 0
+  },
+  "monthly": {
+    "enabled": true,
+    "day": 6,
+    "hour": 3,
+    "minute": 0
+  },
+  "cleanup": {
+    "enabled": true,
+    "hour": 4,
+    "minute": 0
+  }
+}

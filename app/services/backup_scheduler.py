@@ -1,6 +1,9 @@
 import threading
 import time
+import json
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
 import logging
 from .backup_service import BackupService
 from .google_drive_service import GoogleDriveService
@@ -16,6 +19,8 @@ class BackupScheduler:
         self.logger = logging.getLogger(__name__)
         self.running = False
         self.thread = None
+        self.config_file = Path("backup_schedule_config.json")
+        self.load_schedule_config()
         
     def start(self):
         """Inicia el scheduler de backups"""
@@ -45,21 +50,89 @@ class BackupScheduler:
                 self.logger.error(f"Error en scheduler: {str(e)}")
                 time.sleep(300)  # Esperar 5 minutos en caso de error
     
+    def load_schedule_config(self):
+        """Carga configuración de horarios desde archivo"""
+        default_config = {
+            "weekly": {
+                "enabled": True,
+                "day": 6,  # 0=Lunes, 6=Domingo
+                "hour": 2,
+                "minute": 0
+            },
+            "monthly": {
+                "enabled": True,
+                "day": 6,  # Primer domingo del mes
+                "hour": 3,
+                "minute": 0
+            },
+            "cleanup": {
+                "enabled": True,
+                "hour": 4,
+                "minute": 0
+            }
+        }
+        
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, 'r') as f:
+                    self.schedule_config = json.load(f)
+                # Validar y completar configuración faltante
+                for key in default_config:
+                    if key not in self.schedule_config:
+                        self.schedule_config[key] = default_config[key]
+            except Exception as e:
+                self.logger.error(f"Error cargando configuración de horarios: {e}")
+                self.schedule_config = default_config
+        else:
+            self.schedule_config = default_config
+            self.save_schedule_config()
+    
+    def save_schedule_config(self):
+        """Guarda configuración de horarios"""
+        try:
+            with open(self.config_file, 'w') as f:
+                json.dump(self.schedule_config, f, indent=2)
+        except Exception as e:
+            self.logger.error(f"Error guardando configuración de horarios: {e}")
+    
+    def update_schedule_config(self, backup_type, config):
+        """Actualiza configuración de horarios"""
+        if backup_type in self.schedule_config:
+            self.schedule_config[backup_type].update(config)
+            self.save_schedule_config()
+            return {"success": True, "message": f"Configuración de {backup_type} actualizada"}
+        return {"success": False, "error": "Tipo de backup no válido"}
+    
+    def get_schedule_config(self):
+        """Obtiene configuración actual de horarios"""
+        return self.schedule_config.copy()
+    
     def _check_and_run_backups(self):
         """Verifica si es momento de ejecutar backups"""
         now = datetime.now()
         
-        # Backup semanal (domingos a las 2:00 AM)
-        if now.weekday() == 6 and now.hour == 2 and now.minute < 5:
+        # Backup semanal
+        weekly_config = self.schedule_config.get("weekly", {})
+        if (weekly_config.get("enabled", True) and
+            now.weekday() == weekly_config.get("day", 6) and
+            now.hour == weekly_config.get("hour", 2) and
+            now.minute < 5):
             self._run_weekly_backup()
         
-        # Backup mensual (primer domingo del mes a las 3:00 AM)
-        if (now.weekday() == 6 and now.day <= 7 and 
-            now.hour == 3 and now.minute < 5):
+        # Backup mensual (primer día configurado del mes)
+        monthly_config = self.schedule_config.get("monthly", {})
+        if (monthly_config.get("enabled", True) and
+            now.weekday() == monthly_config.get("day", 6) and
+            now.day <= 7 and
+            now.hour == monthly_config.get("hour", 3) and
+            now.minute < 5):
             self._run_monthly_backup()
         
-        # Limpieza diaria (todos los días a las 4:00 AM)
-        if now.hour == 4 and now.minute < 5:
+        # Limpieza diaria
+        cleanup_config = self.schedule_config.get("cleanup", {})
+        if (cleanup_config.get("enabled", True) and
+            now.hour == cleanup_config.get("hour", 4) and
+            now.minute < 5):
             self._run_cleanup()
     
     def _run_weekly_backup(self):
@@ -137,25 +210,45 @@ class BackupScheduler:
         """Retorna información sobre próximos backups programados"""
         now = datetime.now()
         
-        # Próximo domingo a las 2:00 AM para backup semanal
-        days_until_sunday = (6 - now.weekday()) % 7
-        if days_until_sunday == 0 and now.hour >= 2:
-            days_until_sunday = 7
+        # Configuración semanal
+        weekly_config = self.schedule_config.get("weekly", {})
+        weekly_day = weekly_config.get("day", 6)
+        weekly_hour = weekly_config.get("hour", 2)
+        weekly_minute = weekly_config.get("minute", 0)
         
-        next_weekly = now.replace(hour=2, minute=0, second=0, microsecond=0) + timedelta(days=days_until_sunday)
+        # Calcular próximo backup semanal
+        days_until_weekly = (weekly_day - now.weekday()) % 7
+        if days_until_weekly == 0 and (now.hour > weekly_hour or (now.hour == weekly_hour and now.minute >= weekly_minute)):
+            days_until_weekly = 7
         
-        # Primer domingo del próximo mes a las 3:00 AM
+        next_weekly = now.replace(hour=weekly_hour, minute=weekly_minute, second=0, microsecond=0) + timedelta(days=days_until_weekly)
+        
+        # Configuración mensual
+        monthly_config = self.schedule_config.get("monthly", {})
+        monthly_day = monthly_config.get("day", 6)
+        monthly_hour = monthly_config.get("hour", 3)
+        monthly_minute = monthly_config.get("minute", 0)
+        
+        # Calcular próximo backup mensual (primer día configurado del mes)
         next_month = now.replace(day=1) + timedelta(days=32)
         next_month = next_month.replace(day=1)
         
-        # Encontrar primer domingo del mes
-        days_to_first_sunday = (6 - next_month.weekday()) % 7
-        next_monthly = next_month.replace(hour=3, minute=0, second=0, microsecond=0) + timedelta(days=days_to_first_sunday)
+        # Encontrar primer día configurado del mes
+        days_to_target = (monthly_day - next_month.weekday()) % 7
+        next_monthly = next_month.replace(hour=monthly_hour, minute=monthly_minute, second=0, microsecond=0) + timedelta(days=days_to_target)
+        
+        # Si ya pasó este mes, calcular para el próximo
+        if next_monthly <= now:
+            next_month = next_month.replace(day=1) + timedelta(days=32)
+            next_month = next_month.replace(day=1)
+            days_to_target = (monthly_day - next_month.weekday()) % 7
+            next_monthly = next_month.replace(hour=monthly_hour, minute=monthly_minute, second=0, microsecond=0) + timedelta(days=days_to_target)
         
         return {
-            "next_weekly": next_weekly.isoformat(),
-            "next_monthly": next_monthly.isoformat(),
-            "scheduler_running": self.running
+            "next_weekly": next_weekly.isoformat() if weekly_config.get("enabled", True) else None,
+            "next_monthly": next_monthly.isoformat() if monthly_config.get("enabled", True) else None,
+            "scheduler_running": self.running,
+            "config": self.schedule_config
         }
 
 # Instancia global del scheduler

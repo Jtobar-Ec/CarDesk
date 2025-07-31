@@ -49,7 +49,7 @@
                 </h5>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" id="entradaForm">
                     <div class="mb-3">
                         <label for="cantidad" class="form-label">Cantidad <span class="text-danger">*</span></label>
                         <input type="number" class="form-control" id="cantidad" name="cantidad" 
@@ -109,8 +109,31 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar validador
+    const validator = new FormValidator('entradaForm');
+    
+    // Configurar reglas de validación
+    validator
+        .addRule('cantidad', [
+            CommonValidations.required('La cantidad es obligatoria'),
+            CommonValidations.min(1, 'La cantidad debe ser mayor a 0'),
+            CommonValidations.numeric('Solo se permiten números enteros')
+        ])
+        .addRule('valor_unitario', [
+            CommonValidations.required('El valor unitario es obligatorio'),
+            CommonValidations.min(0.01, 'El valor debe ser mayor a 0'),
+            CommonValidations.decimal('Formato de precio inválido')
+        ])
+        .addRule('observaciones', [
+            CommonValidations.maxLength(500, 'Las observaciones no pueden exceder 500 caracteres')
+        ]);
+    
     const cantidadInput = document.getElementById('cantidad');
     const valorUnitarioInput = document.getElementById('valor_unitario');
+    
+    // Aplicar formateo
+    if (cantidadInput) ValidationUtils.formatInteger(cantidadInput);
+    if (valorUnitarioInput) ValidationUtils.formatNumber(valorUnitarioInput);
     
     function calcularTotal() {
         const cantidad = parseFloat(cantidadInput.value) || 0;

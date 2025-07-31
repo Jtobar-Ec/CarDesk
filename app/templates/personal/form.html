@@ -136,79 +136,51 @@
 
 {% block scripts %}
 <script>
-$(document).ready(function() {
-    // Validación del formulario
-    $('#personalForm').on('submit', function(e) {
-        let isValid = true;
-        let errorMessage = '';
-        
-        // Validar nombre
-        const nombre = $('#nombre').val().trim();
-        if (nombre.length < 2) {
-            isValid = false;
-            errorMessage += '- El nombre debe tener al menos 2 caracteres\n';
-        }
-        
-        // Validar apellido
-        const apellido = $('#apellido').val().trim();
-        if (apellido.length < 2) {
-            isValid = false;
-            errorMessage += '- El apellido debe tener al menos 2 caracteres\n';
-        }
-        
-        // Validar CI
-        const ci = $('#ci').val().trim();
-        if (ci.length < 5) {
-            isValid = false;
-            errorMessage += '- La cédula debe tener al menos 5 caracteres\n';
-        }
-        
-        // Validar correo si se proporciona
-        const correo = $('#correo').val().trim();
-        if (correo && !isValidEmail(correo)) {
-            isValid = false;
-            errorMessage += '- El formato del correo electrónico no es válido\n';
-        }
-        
-        if (!isValid) {
-            e.preventDefault();
-            alert('Por favor corrija los siguientes errores:\n\n' + errorMessage);
-            return false;
-        }
-    });
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar validador
+    const validator = new FormValidator('personalForm');
     
-    // Función para validar email
-    function isValidEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
+    // Configurar reglas de validación
+    validator
+        .addRule('nombre', [
+            CommonValidations.required('El nombre es obligatorio'),
+            CommonValidations.minLength(2, 'El nombre debe tener al menos 2 caracteres'),
+            CommonValidations.maxLength(50, 'El nombre no puede exceder 50 caracteres'),
+            CommonValidations.alphanumeric('Solo se permiten letras y espacios')
+        ])
+        .addRule('apellido', [
+            CommonValidations.required('El apellido es obligatorio'),
+            CommonValidations.minLength(2, 'El apellido debe tener al menos 2 caracteres'),
+            CommonValidations.maxLength(50, 'El apellido no puede exceder 50 caracteres'),
+            CommonValidations.alphanumeric('Solo se permiten letras y espacios')
+        ])
+        .addRule('ci', [
+            CommonValidations.required('La cédula es obligatoria'),
+            CommonValidations.ci('La cédula debe tener 10 dígitos')
+        ])
+        .addRule('telefono', [
+            CommonValidations.phone('Formato de teléfono inválido')
+        ])
+        .addRule('correo', [
+            CommonValidations.email('Formato de email inválido')
+        ]);
+    
+    // Aplicar formateo automático
+    const nombreInput = document.getElementById('nombre');
+    const apellidoInput = document.getElementById('apellido');
+    const ciInput = document.getElementById('ci');
+    const telefonoInput = document.getElementById('telefono');
+    const correoInput = document.getElementById('correo');
+    
+    if (nombreInput) ValidationUtils.capitalize(nombreInput);
+    if (apellidoInput) ValidationUtils.capitalize(apellidoInput);
+    if (ciInput) ValidationUtils.formatInteger(ciInput);
+    if (telefonoInput) ValidationUtils.formatPhone(telefonoInput);
+    if (correoInput) {
+        correoInput.addEventListener('blur', function() {
+            this.value = this.value.toLowerCase();
+        });
     }
-    
-    // Formatear CI mientras se escribe
-    $('#ci').on('input', function() {
-        let value = $(this).val().replace(/\D/g, ''); // Solo números
-        $(this).val(value);
-    });
-    
-    // Formatear teléfono mientras se escribe
-    $('#telefono').on('input', function() {
-        let value = $(this).val().replace(/[^\d\-\+\(\)\s]/g, ''); // Solo números y caracteres de teléfono
-        $(this).val(value);
-    });
-    
-    // Capitalizar primera letra de nombre y apellido
-    $('#nombre, #apellido').on('blur', function() {
-        let value = $(this).val().trim();
-        if (value) {
-            value = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
-            $(this).val(value);
-        }
-    });
-    
-    // Convertir correo a minúsculas
-    $('#correo').on('blur', function() {
-        let value = $(this).val().trim().toLowerCase();
-        $(this).val(value);
-    });
 });
 </script>
 {% endblock %}

@@ -23,7 +23,7 @@
     <div class="col-md-8">
         <div class="card">
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" id="articuloForm">
                     {% if articulo %}
                     <div class="row">
                         <div class="col-md-6">
@@ -610,5 +610,108 @@ function showAlert(message, type) {
         }
     }, 5000);
 }
+
+// Inicializar validaciones
+document.addEventListener('DOMContentLoaded', function() {
+    // Validaciones para formulario de edición de artículo existente
+    if (document.getElementById('cuenta_contable')) {
+        const validator = new FormValidator('articuloForm');
+        validator
+            .addRule('cuenta_contable', [
+                CommonValidations.required('La cuenta contable es obligatoria'),
+                CommonValidations.minLength(3, 'La cuenta contable debe tener al menos 3 caracteres')
+            ]);
+    }
+    
+    // Validaciones para modal de nuevo proveedor
+    if (document.getElementById('formNuevoProveedor')) {
+        const proveedorValidator = new FormValidator('formNuevoProveedor');
+        proveedorValidator
+            .addRule('razon_social', [
+                CommonValidations.required('La razón social es obligatoria'),
+                CommonValidations.minLength(3, 'Mínimo 3 caracteres'),
+                CommonValidations.maxLength(100, 'Máximo 100 caracteres')
+            ])
+            .addRule('ci_ruc', [
+                CommonValidations.required('CI/RUC es obligatorio'),
+                {
+                    type: 'custom',
+                    message: 'CI debe tener 10 dígitos o RUC 13 dígitos',
+                    validator: (value) => value.length === 10 || value.length === 13
+                }
+            ])
+            .addRule('telefono', [
+                CommonValidations.phone('Formato de teléfono inválido')
+            ])
+            .addRule('correo', [
+                CommonValidations.email('Formato de email inválido')
+            ]);
+        
+        // Aplicar formateo
+        const modalCiRuc = document.getElementById('modal_ci_ruc');
+        const modalTelefono = document.getElementById('modal_telefono');
+        const modalCorreo = document.getElementById('modal_correo');
+        
+        if (modalCiRuc) ValidationUtils.formatInteger(modalCiRuc);
+        if (modalTelefono) ValidationUtils.formatPhone(modalTelefono);
+        if (modalCorreo) {
+            modalCorreo.addEventListener('blur', function() {
+                this.value = this.value.toLowerCase();
+            });
+        }
+    }
+    
+    // Validaciones dinámicas para artículos múltiples
+    const originalAgregarArticulo = window.agregarArticulo;
+    window.agregarArticulo = function() {
+        originalAgregarArticulo();
+        
+        // Aplicar validaciones al nuevo artículo
+        const lastIndex = articuloIndex - 1;
+        const nombreInput = document.getElementById(`nombre_${lastIndex}`);
+        const cuentaInput = document.getElementById(`cuenta_contable_${lastIndex}`);
+        const cantidadInput = document.getElementById(`cantidad_${lastIndex}`);
+        const valorInput = document.getElementById(`valor_unitario_${lastIndex}`);
+        
+        if (nombreInput) {
+            nombreInput.addEventListener('blur', function() {
+                if (this.value.trim().length < 3) {
+                    this.classList.add('is-invalid');
+                    let feedback = this.parentNode.querySelector('.invalid-feedback');
+                    if (!feedback) {
+                        feedback = document.createElement('div');
+                        feedback.className = 'invalid-feedback';
+                        this.parentNode.appendChild(feedback);
+                    }
+                    feedback.textContent = 'El nombre debe tener al menos 3 caracteres';
+                } else {
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+        
+        if (cantidadInput) {
+            cantidadInput.addEventListener('input', function() {
+                const value = parseInt(this.value);
+                if (value < 1) {
+                    this.classList.add('is-invalid');
+                } else {
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+        
+        if (valorInput) {
+            valorInput.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                if (value <= 0) {
+                    this.classList.add('is-invalid');
+                } else {
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+    };
+});
 </script>
 {% endblock %}

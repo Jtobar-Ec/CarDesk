@@ -124,10 +124,35 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const stockDisponible = {% if instrumento.item %}{{ instrumento.item.i_cantidad }}{% else %}0{% endif %};
+    
+    // Inicializar validador
+    const validator = new FormValidator('salidaForm');
+    
+    // Configurar reglas de validación
+    validator
+        .addRule('cantidad', [
+            CommonValidations.required('La cantidad es obligatoria'),
+            CommonValidations.min(1, 'La cantidad debe ser mayor a 0'),
+            CommonValidations.max(stockDisponible, 'Stock insuficiente. Disponible: ' + stockDisponible),
+            CommonValidations.numeric('Solo se permiten números enteros')
+        ])
+        .addRule('valor_unitario', [
+            CommonValidations.required('El valor unitario es obligatorio'),
+            CommonValidations.min(0.01, 'El valor debe ser mayor a 0'),
+            CommonValidations.decimal('Formato de precio inválido')
+        ])
+        .addRule('observaciones', [
+            CommonValidations.maxLength(500, 'Las observaciones no pueden exceder 500 caracteres')
+        ]);
+    
     const cantidadInput = document.getElementById('cantidad');
     const valorUnitarioInput = document.getElementById('valor_unitario');
     const form = document.getElementById('salidaForm');
-    const stockDisponible = {{ instrumento.item.i_cantidad if instrumento.item else 0 | tojson }};
+    
+    // Aplicar formateo
+    if (cantidadInput) ValidationUtils.formatInteger(cantidadInput);
+    if (valorUnitarioInput) ValidationUtils.formatNumber(valorUnitarioInput);
     
     function calcularTotal() {
         const cantidad = parseFloat(cantidadInput.value) || 0;
@@ -149,48 +174,29 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             totalDisplay.style.display = 'none';
         }
-        
-        // Validar cantidad
-        if (cantidad > stockDisponible) {
-            cantidadInput.setCustomValidity(`La cantidad no puede ser mayor a ${stockDisponible}`);
-            cantidadInput.classList.add('is-invalid');
-        } else {
-            cantidadInput.setCustomValidity('');
-            cantidadInput.classList.remove('is-invalid');
-        }
     }
     
-    function validarStock() {
-        const cantidad = parseInt(cantidadInput.value) || 0;
-        
-        if (cantidad > stockDisponible) {
-            cantidadInput.setCustomValidity(`Stock insuficiente. Disponible: ${stockDisponible}`);
-            return false;
-        } else {
-            cantidadInput.setCustomValidity('');
-            return true;
-        }
-    }
-    
-    cantidadInput.addEventListener('input', function() {
-        calcularTotal();
-        validarStock();
-    });
-    
+    cantidadInput.addEventListener('input', calcularTotal);
     valorUnitarioInput.addEventListener('input', calcularTotal);
     
+    // Validación adicional en el envío
     form.addEventListener('submit', function(e) {
-        if (!validarStock()) {
-            e.preventDefault();
-            alert(`No se puede registrar la salida. Stock disponible: ${stockDisponible}`);
-        } else if (stockDisponible <= 0) {
+        const cantidad = parseInt(cantidadInput.value) || 0;
+        
+        if (stockDisponible <= 0) {
             e.preventDefault();
             alert('No hay stock disponible para este instrumento.');
-        } else {
-            const cantidad = parseInt(cantidadInput.value) || 0;
-            if (!confirm(`¿Confirmar salida de ${cantidad} unidad(es) del instrumento?`)) {
-                e.preventDefault();
-            }
+            return;
+        }
+        
+        if (cantidad > stockDisponible) {
+            e.preventDefault();
+            alert(`No se puede registrar la salida. Stock disponible: ${stockDisponible}`);
+            return;
+        }
+        
+        if (!confirm(`¿Confirmar salida de ${cantidad} unidad(es) del instrumento?`)) {
+            e.preventDefault();
         }
     });
     

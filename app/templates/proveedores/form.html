@@ -100,38 +100,54 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Validación de CI/RUC
+    // Inicializar validador
+    const validator = new FormValidator('proveedorForm');
+    
+    // Configurar reglas de validación
+    validator
+        .addRule('ci_ruc', [
+            CommonValidations.required('CI/RUC es obligatorio'),
+            {
+                type: 'custom',
+                message: 'CI debe tener 10 dígitos o RUC 13 dígitos',
+                validator: (value) => value.length === 10 || value.length === 13
+            }
+        ])
+        .addRule('razon_social', [
+            CommonValidations.required('La razón social es obligatoria'),
+            CommonValidations.minLength(3, 'La razón social debe tener al menos 3 caracteres'),
+            CommonValidations.maxLength(100, 'La razón social no puede exceder 100 caracteres')
+        ])
+        .addRule('telefono', [
+            CommonValidations.phone('Formato de teléfono inválido')
+        ])
+        .addRule('correo', [
+            CommonValidations.email('Formato de email inválido')
+        ])
+        .addRule('direccion', [
+            CommonValidations.maxLength(200, 'La dirección no puede exceder 200 caracteres')
+        ]);
+    
+    // Aplicar formateo automático
     const ciRucInput = document.getElementById('ci_ruc');
-    
-    ciRucInput.addEventListener('input', function() {
-        const valor = this.value.replace(/\D/g, ''); // Solo números
-        this.value = valor;
-        
-        if (valor.length === 10) {
-            this.setCustomValidity('');
-            this.classList.remove('is-invalid');
-            this.classList.add('is-valid');
-        } else if (valor.length === 13) {
-            this.setCustomValidity('');
-            this.classList.remove('is-invalid');
-            this.classList.add('is-valid');
-        } else if (valor.length > 0) {
-            this.setCustomValidity('CI debe tener 10 dígitos o RUC 13 dígitos');
-            this.classList.remove('is-valid');
-            this.classList.add('is-invalid');
-        } else {
-            this.setCustomValidity('');
-            this.classList.remove('is-valid', 'is-invalid');
-        }
-    });
-
-    // Validación de teléfono
     const telefonoInput = document.getElementById('telefono');
+    const correoInput = document.getElementById('correo');
+    const razonSocialInput = document.getElementById('razon_social');
     
-    telefonoInput.addEventListener('input', function() {
-        const valor = this.value.replace(/\D/g, ''); // Solo números
-        this.value = valor;
-    });
+    if (ciRucInput) ValidationUtils.formatInteger(ciRucInput);
+    if (telefonoInput) ValidationUtils.formatPhone(telefonoInput);
+    if (razonSocialInput) ValidationUtils.capitalize(razonSocialInput);
+    if (correoInput) {
+        correoInput.addEventListener('blur', function() {
+            this.value = this.value.toLowerCase();
+        });
+    }
+    
+    // Agregar ID al formulario si no lo tiene
+    const form = document.querySelector('form');
+    if (form && !form.id) {
+        form.id = 'proveedorForm';
+    }
 });
 </script>
 {% endblock %}

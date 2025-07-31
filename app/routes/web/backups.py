@@ -393,3 +393,46 @@ def clear_backup_cache():
         return jsonify(result)
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/api/schedule/config', methods=['GET'])
+def get_schedule_config():
+    """Obtener configuración de horarios de backups"""
+    try:
+        config = backup_scheduler.get_schedule_config()
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/api/schedule/config', methods=['POST'])
+def update_schedule_config():
+    """Actualizar configuración de horarios de backups"""
+    try:
+        data = request.get_json()
+        backup_type = data.get('backup_type')
+        config = data.get('config')
+        
+        if not backup_type or not config:
+            return jsonify({
+                'success': False,
+                'error': 'Tipo de backup y configuración requeridos'
+            }), 400
+        
+        result = backup_scheduler.update_schedule_config(backup_type, config)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@bp.route('/api/schedule/next', methods=['GET'])
+def get_next_backups():
+    """Obtener próximos backups programados"""
+    try:
+        next_backups = backup_scheduler.get_next_scheduled_backups()
+        return jsonify({
+            'success': True,
+            'next_backups': next_backups
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

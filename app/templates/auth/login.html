@@ -10,7 +10,7 @@
                 <h4><i class="fas fa-sign-in-alt"></i> Iniciar Sesión</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <form method="POST" id="loginForm">
                     {{ form.hidden_tag() }}
                     
                     <div class="mb-3">
@@ -66,4 +66,24 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Inicializar validador
+    const validator = new FormValidator('loginForm');
+    
+    // Configurar reglas de validación
+    validator
+        .addRule('username', [
+            CommonValidations.required('El nombre de usuario es obligatorio'),
+            CommonValidations.minLength(3, 'El usuario debe tener al menos 3 caracteres')
+        ])
+        .addRule('password', [
+            CommonValidations.required('La contraseña es obligatoria'),
+            CommonValidations.minLength(4, 'La contraseña debe tener al menos 4 caracteres')
+        ]);
+});
+</script>
 {% endblock %}
