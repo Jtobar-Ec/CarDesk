@@ -1,13 +1,15 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 load_dotenv(os.path.join(basedir, '.env'))
 
 class Config:
+    """Configuración base"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-key-segura'
     
-    # Configuración MySQL (adaptada)
+    # Configuración MySQL
     MYSQL_HOST = os.environ.get('MYSQL_HOST') or 'localhost'
     MYSQL_PORT = os.environ.get('MYSQL_PORT') or '3306'
     MYSQL_USER = os.environ.get('MYSQL_USER') or 'flaskuser'
@@ -27,3 +29,32 @@ class Config:
             'write_timeout': 60
         }
     }
+
+class DevelopmentConfig(Config):
+    DEBUG = True
+    TESTING = False
+
+class ProductionConfig(Config):
+    DEBUG = False
+    TESTING = False
+    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_pre_ping': True,
+        'pool_recycle': 3600,
+        'pool_size': 20,
+        'max_overflow': 30,
+        'connect_args': {
+            'connect_timeout': 30,
+            'read_timeout': 30,
+            'write_timeout': 30
+        }
+    }
+
+config = {
+    'development': DevelopmentConfig,
+    'production': ProductionConfig,
+    'default': DevelopmentConfig
+}

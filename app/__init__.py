@@ -1,13 +1,18 @@
 from flask import Flask
 from flask_login import LoginManager
 from .database import db, init_app
-from .config import Config
+from .config import config
+import os
 
-def create_app(config_name='development'):
+def create_app(config_name=None):
     app = Flask(__name__)
     
-    # Cargar configuración completa desde config.py
-    app.config.from_object(Config)
+    # Determinar configuración basada en variable de entorno
+    if config_name is None:
+        config_name = os.environ.get('FLASK_ENV', 'development')
+    
+    # Cargar configuración específica
+    app.config.from_object(config[config_name])
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB máximo para uploads
     
     # Inicializar la base de datos
