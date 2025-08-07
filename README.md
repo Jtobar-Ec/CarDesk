@@ -74,11 +74,44 @@ python -c "from app import create_app; from app.database import db; app = create
 
 ## 🏃‍♂️ Ejecutar
 
+### Desarrollo
 ```bash
 python run.py
 ```
-
 Acceder a: http://localhost:5000
+
+### Producción
+```bash
+./deploy.sh
+```
+Acceder a: http://localhost:8000
+
+## 🖥️ Accesos Directos del Menú
+
+Para facilitar el uso, puedes crear accesos directos en el menú del sistema:
+
+### Crear accesos directos
+```bash
+# Hacer ejecutables los archivos .desktop
+chmod +x CarDesk-Deploy.desktop CarDesk-Stop.desktop
+
+# Copiar al menú de aplicaciones
+cp CarDesk-Deploy.desktop ~/.local/share/applications/
+cp CarDesk-Stop.desktop ~/.local/share/applications/
+
+# Actualizar base de datos del menú
+update-desktop-database ~/.local/share/applications/
+```
+
+### Usar desde el menú
+1. **Menú de aplicaciones** → Buscar "CarDesk"
+2. **"CarDesk - Producción"** → Iniciar servidor
+3. **"CarDesk - Detener"** → Parar servidor
+
+### Scripts disponibles
+- `./deploy.sh` - Iniciar en producción
+- `./stop.sh` - Detener servidor
+- `python run.py` - Modo desarrollo
 
 ## 📁 Estructura
 
