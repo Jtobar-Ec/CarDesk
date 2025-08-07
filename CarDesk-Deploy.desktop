@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CarDesk - Producción
+Comment=Ejecutar CarDesk en modo producción
+Exec=/home/sebas/Descargas/Tesis/CarDesk/deploy.sh
+Icon=applications-internet
+Terminal=true
+Categories=Development;Network;
+Path=/home/sebas/Descargas/Tesis/CarDesk
+StartupNotify=true

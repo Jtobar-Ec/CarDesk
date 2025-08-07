@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=CarDesk - Detener
+Comment=Detener servidor CarDesk en producción
+Exec=/home/sebas/Descargas/Tesis/CarDesk/stop.sh
+Icon=process-stop
+Terminal=true
+Categories=Development;Network;
+Path=/home/sebas/Descargas/Tesis/CarDesk
+StartupNotify=true
